@@ -5,10 +5,8 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/aws/aws-sdk-go-v2/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
@@ -22,10 +20,8 @@ func main() {
 
 	cfg.Region = endpoints.ApSoutheast1RegionID
 
-	ssm := ssm.New(cfg)
-
 	// Assuming each account should have a STAGE variable set
-	stage, err := getSecret(ssm, "STAGE")
+	stage, err := getSecret(cfg, "STAGE")
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -33,35 +29,47 @@ func main() {
 
 	fmt.Println("STAGE:", stage)
 
+	domain, err := udomain(cfg, "foobar")
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	fmt.Println(domain)
+
+}
+
+func udomain(cfg aws.Config, service string) (string, error) {
 	svc := sts.New(cfg)
 	input := &sts.GetCallerIdentityInput{}
 
 	req := svc.GetCallerIdentityRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
-		}
-		return
+		return "", err
 	}
 
-	fmt.Println(result)
+	log.Printf("Account: %v", result)
+
+	switch accountID := aws.StringValue(result.Account); accountID {
+	case "192458993663":
+		return fmt.Sprintf("%s.unee-t.com", service), nil
+	case "915001051872":
+		return fmt.Sprintf("%s.demo.unee-t.com", service), nil
+	case "812644853088":
+		return fmt.Sprintf("%s.dev.unee-t.com", service), nil
+	default:
+		return fmt.Sprintf("%s.dev.unee-t.com", service), nil
+	}
 
 }
 
-func getSecret(ssmapi ssmiface.SSMAPI, store string) (string, error) {
+func getSecret(cfg aws.Config, store string) (string, error) {
+	ps := ssm.New(cfg)
 	in := &ssm.GetParameterInput{
 		Name:           aws.String(store),
 		WithDecryption: aws.Bool(true),
 	}
-	req := ssmapi.GetParameterRequest(in)
+	req := ps.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
 		return "", err
