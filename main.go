@@ -17,11 +17,11 @@ type Env struct {
 type EnvCode int
 
 // https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L12-L16
-var (
-	EnvUnknown EnvCode = 0 // Oops
-	EnvDev     EnvCode = 1 // Development aka Staging
-	EnvProd    EnvCode = 2 // Production
-	EnvDemo    EnvCode = 3 // Demo, which is like Production, for prospective customers to try
+const (
+	EnvUnknown EnvCode = iota // Oops
+	EnvDev                    // Development aka Staging
+	EnvProd                   // Production
+	EnvDemo                   // Demo, which is like Production, for prospective customers to try
 )
 
 func New(cfg aws.Config) (e Env, err error) {
@@ -57,7 +57,7 @@ func New(cfg aws.Config) (e Env, err error) {
 	}
 }
 
-func (e Env) udomain(service string) string {
+func (e Env) Udomain(service string) string {
 	if service == "" {
 		return ""
 	}
@@ -75,7 +75,7 @@ func (e Env) udomain(service string) string {
 
 }
 
-func (e Env) getSecret(store string) (string, error) {
+func (e Env) GetSecret(store string) string {
 	ps := ssm.New(e.cfg)
 	in := &ssm.GetParameterInput{
 		Name:           aws.String(store),
@@ -84,7 +84,8 @@ func (e Env) getSecret(store string) (string, error) {
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
-		return "", err
+		log.Fatal(err)
+		return ""
 	}
-	return aws.StringValue(out.Parameter.Value), nil
+	return aws.StringValue(out.Parameter.Value)
 }
