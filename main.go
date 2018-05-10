@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
 
 func main() {
@@ -18,6 +19,9 @@ func main() {
 		log.Fatal(err)
 		return
 	}
+
+	cfg.Region = endpoints.ApSoutheast1RegionID
+
 	ssm := ssm.New(cfg)
 
 	// Assuming each account should have a STAGE variable set
