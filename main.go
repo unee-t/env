@@ -11,6 +11,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
+type Env int
+
+var (
+	EnvUnknown Env = 0 // Oops
+	EnvDev     Env = 1 // Development aka Staging
+	EnvProd    Env = 2 // Production
+	EnvDemo    Env = 3 // Demo, which is like Production, for prospective customers to try
+)
+
 func main() {
 	cfg, err := external.LoadDefaultAWSConfig(external.WithSharedConfigProfile("uneet-dev"))
 	if err != nil {
@@ -38,7 +47,7 @@ func main() {
 
 }
 
-func envcode(cfg aws.Config) (int, error) {
+func envcode(cfg aws.Config) (Env, error) {
 	svc := sts.New(cfg)
 	input := &sts.GetCallerIdentityInput{}
 
@@ -53,28 +62,28 @@ func envcode(cfg aws.Config) (int, error) {
 	// https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L16
 	switch accountID := aws.StringValue(result.Account); accountID {
 	case "812644853088":
-		return 1, nil
+		return EnvDev, nil
 	case "192458993663":
-		return 2, nil
+		return EnvProd, nil
 	case "915001051872":
-		return 3, nil
+		return EnvDemo, nil
 	default:
 		// Resort to staging if we don't recognise the account
 		log.Printf("Warning: Account ID %s is unknown, resorting to dev", accountID)
-		return 1, nil
+		return EnvDev, nil
 	}
 }
 
-func udomain(env int, service string) string {
+func udomain(env Env, service string) string {
 	if service == "" {
 		return ""
 	}
 	switch env {
-	case 1:
+	case EnvDev:
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
-	case 2:
+	case EnvProd:
 		return fmt.Sprintf("%s.unee-t.com", service)
-	case 3:
+	case EnvDemo:
 		return fmt.Sprintf("%s.demo.unee-t.com", service)
 	default:
 		log.Printf("Warning: Env %d is unknown, resorting to dev", env)
