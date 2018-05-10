@@ -21,7 +21,13 @@ func main() {
 	ssm := ssm.New(cfg)
 
 	// Assuming each account should have a STAGE variable set
-	fmt.Println("STAGE:", getSecret(ssm, "STAGE"))
+	stage, err := getSecret(ssm, "STAGE")
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	fmt.Println("STAGE:", stage)
 
 	svc := sts.New(cfg)
 	input := &sts.GetCallerIdentityInput{}
@@ -46,7 +52,7 @@ func main() {
 
 }
 
-func getSecret(ssmapi ssmiface.SSMAPI, store string) string {
+func getSecret(ssmapi ssmiface.SSMAPI, store string) (string, error) {
 	in := &ssm.GetParameterInput{
 		Name:           aws.String(store),
 		WithDecryption: aws.Bool(true),
@@ -54,7 +60,7 @@ func getSecret(ssmapi ssmiface.SSMAPI, store string) string {
 	req := ssmapi.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return aws.StringValue(out.Parameter.Value)
+	return aws.StringValue(out.Parameter.Value), nil
 }
