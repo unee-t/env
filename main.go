@@ -20,6 +20,7 @@ func main() {
 	}
 	ssm := ssm.New(cfg)
 
+	// Assuming each account should have a STAGE variable set
 	fmt.Println("STAGE:", getSecret(ssm, "STAGE"))
 
 	svc := sts.New(cfg)
