@@ -2,8 +2,8 @@ package env
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -38,7 +38,7 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, err
 	}
 
-	log.Printf("Account: %v", result)
+	log.Infof("Account: %v", result)
 
 	switch accountID := aws.StringValue(result.Account); accountID {
 	case "812644853088":
@@ -52,7 +52,7 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, nil
 	default:
 		// Resort to staging if we don't recognise the account
-		log.Printf("Warning: Account ID %s is unknown, resorting to dev", accountID)
+		log.Errorf("Warning: Account ID %s is unknown, resorting to dev", accountID)
 		return e, nil
 	}
 }
@@ -69,7 +69,7 @@ func (e Env) Udomain(service string) string {
 	case EnvDemo:
 		return fmt.Sprintf("%s.demo.unee-t.com", service)
 	default:
-		log.Printf("Warning: Env %d is unknown, resorting to dev", e.Code)
+		log.Errorf("Warning: Env %d is unknown, resorting to dev", e.Code)
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
 	}
 
