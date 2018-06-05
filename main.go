@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -9,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
+// Env is how we manage our differing {dev,demo,prod} AWS accounts
 type Env struct {
 	Code EnvCode
 	cfg  aws.Config
@@ -76,6 +78,13 @@ func (e Env) Udomain(service string) string {
 }
 
 func (e Env) GetSecret(store string) string {
+
+	val, ok := os.LookupEnv(store)
+	if ok {
+		log.Warnf("%s overridden by local env: %s", store, val)
+		return val
+	}
+
 	ps := ssm.New(e.cfg)
 	in := &ssm.GetParameterInput{
 		Name:           aws.String(store),
