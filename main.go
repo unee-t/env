@@ -71,7 +71,7 @@ func (e Env) Udomain(service string) string {
 	case EnvDemo:
 		return fmt.Sprintf("%s.demo.unee-t.com", service)
 	default:
-		log.Errorf("Warning: Env %d is unknown, resorting to dev", e.Code)
+		log.Warnf("Warning: Env %d is unknown, resorting to dev", e.Code)
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
 	}
 
