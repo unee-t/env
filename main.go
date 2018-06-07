@@ -93,7 +93,7 @@ func (e Env) GetSecret(store string) string {
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
-		log.WithError(err).Fatal("failed to retrieve credentials")
+		log.WithError(err).Fatalf("failed to retrieve credentials for looking up %s", store)
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)
