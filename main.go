@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/apex/log"
@@ -97,4 +98,20 @@ func (e Env) GetSecret(store string) string {
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)
+}
+
+func Protect(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+
+		match := user == "tobi" && pass == "ferret"
+
+		if !ok || !match {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Ferret Land"`)
+			http.Error(w, `Unauthorized: Use "tobi" and "ferret" :)`, http.StatusUnauthorized)
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
 }
