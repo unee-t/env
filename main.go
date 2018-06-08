@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -100,18 +101,27 @@ func (e Env) GetSecret(store string) string {
 	return aws.StringValue(out.Parameter.Value)
 }
 
-func Protect(h http.Handler) http.Handler {
+// Protect using: curl -H 'Authorization: Bearer secret' style
+// Modelled after https://github.com/apex/up-examples/blob/master/oss/golang-basic-auth/main.go#L16
+func Protect(h http.Handler, APIAccessToken string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-
-		match := user == "tobi" && pass == "ferret"
-
-		if !ok || !match {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Ferret Land"`)
-			http.Error(w, `Unauthorized: Use "tobi" and "ferret" :)`, http.StatusUnauthorized)
+		var token string
+		// Get token from the Authorization header
+		// format: Authorization: Bearer
+		tokens, ok := r.Header["Authorization"]
+		if ok && len(tokens) >= 1 {
+			token = tokens[0]
+			token = strings.TrimPrefix(token, "Bearer ")
+		}
+		if token == "" || token != APIAccessToken {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
-
 		h.ServeHTTP(w, r)
 	})
+}
+
+// Towr is a workaround for gorilla/pat: https://stackoverflow.com/questions/50753049/
+func Towr(h http.Handler) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) { h.ServeHTTP(w, r) }
 }
