@@ -57,6 +57,7 @@ func New(cfg aws.Config) (e Env, err error) {
 	default:
 		// Resort to staging if we don't recognise the account
 		log.Errorf("Warning: Account ID %s is unknown, resorting to dev", accountID)
+		e.Code = EnvDev
 		return e, nil
 	}
 }
@@ -114,6 +115,7 @@ func Protect(h http.Handler, APIAccessToken string) http.Handler {
 			token = strings.TrimPrefix(token, "Bearer ")
 		}
 		if token == "" || token != APIAccessToken {
+			log.Warnf("Token %s != APIAccessToken %s", token, APIAccessToken)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
