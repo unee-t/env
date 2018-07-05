@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
@@ -30,6 +31,10 @@ const (
 
 func New(cfg aws.Config) (e Env, err error) {
 
+	// Force Singapore
+	cfg.Region = endpoints.ApSoutheast1RegionID
+	log.Infof("Env Region: %s", cfg.Region)
+
 	// Save for ssm
 	e.cfg = cfg
 
@@ -39,6 +44,8 @@ func New(cfg aws.Config) (e Env, err error) {
 	req := svc.GetCallerIdentityRequest(input)
 	result, err := req.Send()
 	if err != nil {
+		e.Code = EnvDemo
+		log.Warnf("Assuming local development, set Code to demo: %d", e.Code)
 		return e, err
 	}
 
@@ -56,14 +63,14 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, nil
 	default:
 		// Resort to staging if we don't recognise the account
-		log.Errorf("Warning: Account ID %s is unknown, resorting to dev", accountID)
-		e.Code = EnvDev
+		log.Errorf("Warning: Account ID %s is unknown", accountID)
 		return e, nil
 	}
 }
 
 func (e Env) Udomain(service string) string {
 	if service == "" {
+		log.Warn("Service string empty")
 		return ""
 	}
 	switch e.Code {
@@ -74,7 +81,7 @@ func (e Env) Udomain(service string) string {
 	case EnvDemo:
 		return fmt.Sprintf("%s.demo.unee-t.com", service)
 	default:
-		log.Warnf("Warning: Env %d is unknown, resorting to dev", e.Code)
+		log.Warnf("Udomain warning: Env %d is unknown, resorting to dev", e.Code)
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
 	}
 
