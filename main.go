@@ -68,6 +68,17 @@ func New(cfg aws.Config) (e Env, err error) {
 	}
 }
 
+func (e Env) Bucket() string {
+	switch e.Code {
+	case EnvProd:
+		return "prod-media-unee-t"
+	case EnvDemo:
+		return "demo-media-unee-t"
+	default:
+		return "dev-media-unee-t"
+	}
+}
+
 func (e Env) Udomain(service string) string {
 	if service == "" {
 		log.Warn("Service string empty")
@@ -84,7 +95,6 @@ func (e Env) Udomain(service string) string {
 		log.Warnf("Udomain warning: Env %d is unknown, resorting to dev", e.Code)
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
 	}
-
 }
 
 func (e Env) GetSecret(store string) string {
