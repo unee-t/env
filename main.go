@@ -15,8 +15,9 @@ import (
 
 // Env is how we manage our differing {dev,demo,prod} AWS accounts
 type Env struct {
-	Code EnvCode
-	cfg  aws.Config
+	Code      EnvCode
+	Cfg       aws.Config
+	AccountID string
 }
 
 type EnvCode int
@@ -36,7 +37,7 @@ func New(cfg aws.Config) (e Env, err error) {
 	log.Infof("Env Region: %s", cfg.Region)
 
 	// Save for ssm
-	e.cfg = cfg
+	e.Cfg = cfg
 
 	svc := sts.New(cfg)
 	input := &sts.GetCallerIdentityInput{}
@@ -50,8 +51,9 @@ func New(cfg aws.Config) (e Env, err error) {
 	}
 
 	log.Infof("Account: %v", result)
+	e.AccountID = aws.StringValue(result.Account)
 
-	switch accountID := aws.StringValue(result.Account); accountID {
+	switch e.AccountID {
 	case "812644853088":
 		e.Code = EnvDev
 		return e, nil
@@ -63,20 +65,32 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, nil
 	default:
 		// Resort to staging if we don't recognise the account
-		log.Errorf("Warning: Account ID %s is unknown", accountID)
+		log.Errorf("Warning: Account ID %s is unknown", e.AccountID)
 		return e, nil
 	}
 }
 
-func (e Env) Bucket() string {
+func (e Env) Bucket(svc string) string {
+	// Most common bucket
+	if svc == "" {
+		svc = "media"
+	}
 	switch e.Code {
 	case EnvProd:
-		return "prod-media-unee-t"
+		return fmt.Sprintf("prod-%s-unee-t", svc)
 	case EnvDemo:
-		return "demo-media-unee-t"
+		return fmt.Sprintf("demo-%s-unee-t", svc)
 	default:
-		return "dev-media-unee-t"
+		return fmt.Sprintf("dev-%s-unee-t", svc)
 	}
+}
+
+func (e Env) SNS(name, region string) string {
+	if name == "" {
+		log.Warn("Service string empty")
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
 }
 
 func (e Env) Udomain(service string) string {
@@ -97,6 +111,8 @@ func (e Env) Udomain(service string) string {
 	}
 }
 
+// GetSecret is the Golang equivalent for
+// aws --profile uneet-dev ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
 func (e Env) GetSecret(store string) string {
 
 	val, ok := os.LookupEnv(store)
@@ -105,7 +121,7 @@ func (e Env) GetSecret(store string) string {
 		return val
 	}
 
-	ps := ssm.New(e.cfg)
+	ps := ssm.New(e.Cfg)
 	in := &ssm.GetParameterInput{
 		Name:           aws.String(store),
 		WithDecryption: aws.Bool(true),
@@ -141,6 +157,7 @@ func Protect(h http.Handler, APIAccessToken string) http.Handler {
 }
 
 // Towr is a workaround for gorilla/pat: https://stackoverflow.com/questions/50753049/
+// Wish I could make this simpler
 func Towr(h http.Handler) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) { h.ServeHTTP(w, r) }
 }
