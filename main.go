@@ -129,7 +129,7 @@ func (e Env) GetSecret(store string) string {
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
-		log.WithError(err).Fatalf("failed to retrieve credentials for looking up %s", store)
+		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", store)
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)
@@ -148,7 +148,7 @@ func Protect(h http.Handler, APIAccessToken string) http.Handler {
 			token = strings.TrimPrefix(token, "Bearer ")
 		}
 		if token == "" || token != APIAccessToken {
-			log.Warnf("Token %s != APIAccessToken %s", token, APIAccessToken)
+			log.Errorf("Token %q != APIAccessToken %q", token, APIAccessToken)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
