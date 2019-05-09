@@ -34,7 +34,7 @@ func New(cfg aws.Config) (e Env, err error) {
 
 	// Force Singapore
 	cfg.Region = endpoints.ApSoutheast1RegionID
-	log.Infof("Env Region: %s", cfg.Region)
+	log.Debugf("Env Region: %s", cfg.Region)
 
 	// Save for ssm
 	e.Cfg = cfg
@@ -113,23 +113,23 @@ func (e Env) Udomain(service string) string {
 
 // GetSecret is the Golang equivalent for
 // aws --profile uneet-dev ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
-func (e Env) GetSecret(store string) string {
+func (e Env) GetSecret(key string) string {
 
-	val, ok := os.LookupEnv(store)
+	val, ok := os.LookupEnv(key)
 	if ok {
-		log.Warnf("%s overridden by local env: %s", store, val)
+		log.Warnf("%s overridden by local env: %s", key, val)
 		return val
 	}
 
 	ps := ssm.New(e.Cfg)
 	in := &ssm.GetParameterInput{
-		Name:           aws.String(store),
+		Name:           aws.String(key),
 		WithDecryption: aws.Bool(true),
 	}
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send()
 	if err != nil {
-		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", store)
+		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)

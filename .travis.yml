@@ -1,8 +1,4 @@
-sudo: required
 language: go
-go:
-- tip
-install:
-- go get -t ./...
-script:
-- go test -v ./...
+
+env:
+  - GO111MODULE=on
