@@ -50,7 +50,7 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, err
 	}
 
-	log.Infof("Account: %v", result)
+	//log.Debugf("Account: %v", result)
 	e.AccountID = aws.StringValue(result.Account)
 
 	switch e.AccountID {
@@ -65,7 +65,7 @@ func New(cfg aws.Config) (e Env, err error) {
 		return e, nil
 	default:
 		// Resort to staging if we don't recognise the account
-		log.Errorf("Warning: Account ID %s is unknown", e.AccountID)
+		log.WithField("accountID", e.AccountID).Error("unknown id")
 		return e, nil
 	}
 }
