@@ -1,6 +1,7 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -43,7 +44,7 @@ func New(cfg aws.Config) (e Env, err error) {
 	input := &sts.GetCallerIdentityInput{}
 
 	req := svc.GetCallerIdentityRequest(input)
-	result, err := req.Send()
+	result, err := req.Send(context.TODO())
 	if err != nil {
 		e.Code = EnvDemo
 		log.Warnf("Assuming local development, set Code to demo: %d", e.Code)
@@ -144,7 +145,7 @@ func (e Env) GetSecret(key string) string {
 		WithDecryption: aws.Bool(true),
 	}
 	req := ps.GetParameterRequest(in)
-	out, err := req.Send()
+	out, err := req.Send(context.TODO())
 	if err != nil {
 		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
 		return ""
