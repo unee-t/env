@@ -1,4 +1,4 @@
-module github.com/unee-t/env
+module github.com/unee-t-ins/env
 
 go 1.12
 
