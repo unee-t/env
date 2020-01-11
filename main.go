@@ -130,8 +130,8 @@ func (e Env) BugzillaDSN() string {
 	}
 
 	return fmt.Sprintf("%s:%s@tcp(%s:3306)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
-		e.GetSecret("MYSQL_USER"),
-		e.GetSecret("MYSQL_PASSWORD"),
+		e.GetSecret("BUGZILLA_DB_USER"),
+		e.GetSecret("BUGZILLA_DB_PASSWORD"),
 		mysqlhost)
 }
 
