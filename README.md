@@ -4,6 +4,14 @@ This repo facilitates the management of environment variables for a given Unee-T
 
 This is one of the dependency which is called when you deploy the following Unee-T modules:
 
+# Pre-requisite:
+
+In each of the environments that will need this code, the following AWS secrets MUST have been declared:
+- DOMAIN
+- STAGE
+- BUGZILLA_DB_USER
+- BUGZILLA_DB_PASSWORD
+
 ## Modules with `go.mod` files:
 
 For the following modules, the dependancy is declared in the file `go.mod`:
