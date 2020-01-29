@@ -2,7 +2,7 @@
 
 This repo facilitates the management of environment variables for a given Unee-T installation.
 
-This is one of the dependency which is called when you deploy the following Unee-T modules:
+This is one of the dependency which is called when you deploy several of the Unee-T modules we need for a complete Unee-T installation.
 
 # Pre-requisite:
 
