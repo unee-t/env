@@ -19,6 +19,7 @@ type Env struct {
 	Code      EnvCode
 	Cfg       aws.Config
 	AccountID string
+	Stage     string
 }
 
 type EnvCode int
@@ -33,9 +34,13 @@ const (
 
 func New(cfg aws.Config) (e Env, err error) {
 
-	// Force Singapore
-	cfg.Region = endpoints.ApSoutheast1RegionID
-	log.Debugf("Env Region: %s", cfg.Region)
+	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+	if !ok {
+		defaultRegion = endpoints.ApSoutheast1RegionID
+	}
+
+	cfg.Region = defaultRegion
+	log.Warnf("Env Region: %s", cfg.Region)
 
 	// Save for ssm
 	e.Cfg = cfg
@@ -51,9 +56,9 @@ func New(cfg aws.Config) (e Env, err error) {
 	e.AccountID = aws.StringValue(result.Account)
 	log.Infof("Account ID: %s", result.Account)
 
-	stage := e.GetSecret("STAGE")
+	e.Stage = e.GetSecret("STAGE")
 
-	switch stage {
+	switch e.Stage {
 	case "dev":
 		e.Code = EnvDev
 		return e, nil
@@ -64,7 +69,7 @@ func New(cfg aws.Config) (e Env, err error) {
 		e.Code = EnvDemo
 		return e, nil
 	default:
-		log.WithField("stage", stage).Error("unknown stage")
+		log.WithField("stage", e.Stage).Error("unknown stage")
 		return e, nil
 	}
 }
@@ -74,13 +79,17 @@ func (e Env) Bucket(svc string) string {
 	if svc == "" {
 		svc = "media"
 	}
-	switch e.Code {
-	case EnvProd:
-		return fmt.Sprintf("prod-%s-unee-t", svc)
-	case EnvDemo:
-		return fmt.Sprintf("demo-%s-unee-t", svc)
-	default:
-		return fmt.Sprintf("dev-%s-unee-t", svc)
+	installationID := e.GetSecret("INSTALLATION_ID")
+	if installationID == "" {
+		installationID = "main"
+		log.Warnf("Using fallback INSTALLATION_ID: %s: ", installationID)
+	}
+	if installationID == "main" {
+		// Preserve original bucket names
+		return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
+	} else {
+		// Use INSTALLATION_ID to generate unique bucket name
+		return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
 	}
 }
 
