@@ -19,6 +19,7 @@ type Env struct {
 	Code      EnvCode
 	Cfg       aws.Config
 	AccountID string
+	Stage     string
 }
 
 type EnvCode int
@@ -33,40 +34,42 @@ const (
 
 func New(cfg aws.Config) (e Env, err error) {
 
-	// Force Singapore
-	cfg.Region = endpoints.ApSoutheast1RegionID
-	log.Debugf("Env Region: %s", cfg.Region)
+	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+	if !ok {
+		defaultRegion = endpoints.ApSoutheast1RegionID
+	}
+
+	cfg.Region = defaultRegion
+	log.Warnf("Env Region: %s", cfg.Region)
 
 	// Save for ssm
 	e.Cfg = cfg
 
 	svc := sts.New(cfg)
 	input := &sts.GetCallerIdentityInput{}
-
 	req := svc.GetCallerIdentityRequest(input)
 	result, err := req.Send(context.TODO())
 	if err != nil {
-		e.Code = EnvDemo
-		log.Warnf("Assuming local development, set Code to demo: %d", e.Code)
 		return e, err
 	}
 
-	//log.Debugf("Account: %v", result)
 	e.AccountID = aws.StringValue(result.Account)
+	log.Infof("Account ID: %s", result.Account)
 
-	switch e.AccountID {
-	case "812644853088":
+	e.Stage = e.GetSecret("STAGE")
+
+	switch e.Stage {
+	case "dev":
 		e.Code = EnvDev
 		return e, nil
-	case "192458993663":
+	case "prod":
 		e.Code = EnvProd
 		return e, nil
-	case "915001051872":
+	case "demo":
 		e.Code = EnvDemo
 		return e, nil
 	default:
-		// Resort to staging if we don't recognise the account
-		log.WithField("accountID", e.AccountID).Error("unknown id")
+		log.WithField("stage", e.Stage).Error("unknown stage")
 		return e, nil
 	}
 }
@@ -76,13 +79,17 @@ func (e Env) Bucket(svc string) string {
 	if svc == "" {
 		svc = "media"
 	}
-	switch e.Code {
-	case EnvProd:
-		return fmt.Sprintf("prod-%s-unee-t", svc)
-	case EnvDemo:
-		return fmt.Sprintf("demo-%s-unee-t", svc)
-	default:
-		return fmt.Sprintf("dev-%s-unee-t", svc)
+	installationID := e.GetSecret("INSTALLATION_ID")
+	if installationID == "" {
+		installationID = "main"
+		log.Warnf("Using fallback INSTALLATION_ID: %s: ", installationID)
+	}
+	if installationID == "main" {
+		// Preserve original bucket names
+		return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
+	} else {
+		// Use INSTALLATION_ID to generate unique bucket name
+		return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
 	}
 }
 
@@ -99,13 +106,18 @@ func (e Env) Udomain(service string) string {
 		log.Warn("Service string empty")
 		return ""
 	}
+	domain := e.GetSecret("DOMAIN")
+	if domain == "" {
+		domain = "unee-t.com"
+		log.Warnf("Using fallback domain: %s: ", domain)
+	}
 	switch e.Code {
 	case EnvDev:
-		return fmt.Sprintf("%s.dev.unee-t.com", service)
+		return fmt.Sprintf("%s.dev.%s", service, domain)
 	case EnvProd:
-		return fmt.Sprintf("%s.unee-t.com", service)
+		return fmt.Sprintf("%s.%s", service, domain)
 	case EnvDemo:
-		return fmt.Sprintf("%s.demo.unee-t.com", service)
+		return fmt.Sprintf("%s.demo.%s", service, domain)
 	default:
 		log.Warnf("Udomain warning: Env %d is unknown, resorting to dev", e.Code)
 		return fmt.Sprintf("%s.dev.unee-t.com", service)
@@ -119,12 +131,16 @@ func (e Env) BugzillaDSN() string {
 		log.Infof("MYSQL_HOST overridden by local env: %s", val)
 		mysqlhost = val
 	} else {
-		mysqlhost = e.Udomain("auroradb")
+		mysqlhost = e.GetSecret("MYSQL_HOST")
+	}
+
+	if mysqlhost == "" {
+		log.Fatal("MYSQL_HOST is unset")
 	}
 
 	return fmt.Sprintf("%s:%s@tcp(%s:3306)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
-		e.GetSecret("MYSQL_USER"),
-		e.GetSecret("MYSQL_PASSWORD"),
+		e.GetSecret("BUGZILLA_DB_USER"),
+		e.GetSecret("BUGZILLA_DB_PASSWORD"),
 		mysqlhost)
 }
 
@@ -138,6 +154,7 @@ func (e Env) GetSecret(key string) string {
 		log.Warnf("%s overridden by local env: %s", key, val)
 		return val
 	}
+	// Ideally environment above is set to avoid costly ssm (parameter store) lookups
 
 	ps := ssm.New(e.Cfg)
 	in := &ssm.GetParameterInput{
