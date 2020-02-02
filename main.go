@@ -9,7 +9,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
+//	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
@@ -35,8 +35,17 @@ const (
 func New(cfg aws.Config) (e Env, err error) {
 
 	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
-	if !ok {
-		defaultRegion = endpoints.ApSoutheast1RegionID
+	// the AWS variable `DEFAULT_REGION` is in the format `ap-southeast-1`
+	// We can use the repo https://github.com/aws/aws-sdk-go/ to convert this to a format like `ApSoutheast1RegionID`
+	// TODO - Check with @kai if the format `ap-southeast-1` is OK or if we need to transform that...
+	if ok {
+		log.Infof("DEFAULT_REGION overridden by local env: %s", defaultRegion)
+	} else {
+		defaultRegion = e.GetSecret("DEFAULT_REGION")
+	}
+
+	if defaultRegion == "" {
+		log.Fatal("DEFAULT_REGION is unset")
 	}
 
 	cfg.Region = defaultRegion
@@ -125,11 +134,37 @@ func (e Env) Udomain(service string) string {
 }
 
 func (e Env) BugzillaDSN() string {
-	var mysqlhost string
-	val, ok := os.LookupEnv("MYSQL_HOST")
+	var bugzillaDbUser string
+	valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
 	if ok {
-		log.Infof("MYSQL_HOST overridden by local env: %s", val)
-		mysqlhost = val
+		log.Infof("BUGZILLA_DB_USER overridden by local env: %s", valbugzillaDbUser)
+		bugzillaDbUser = valbugzillaDbUser
+	} else {
+		bugzillaDbUser = e.GetSecret("BUGZILLA_DB_USER")
+	}
+
+	if bugzillaDbUser == "" {
+		log.Fatal("BUGZILLA_DB_USER is unset")
+	}
+
+	var bugzillaDbPassword string
+	valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
+	if ok {
+		log.Infof("BUGZILLA_DB_PASSWORD overridden by local env: %s", bugzillaDbPassword)
+		bugzillaDbPassword = valbugzillaDbPassword
+	} else {
+		bugzillaDbPassword = e.GetSecret("BUGZILLA_DB_PASSWORD")
+	}
+
+	if bugzillaDbPassword == "" {
+		log.Fatal("BUGZILLA_DB_PASSWORD is unset")
+	}
+
+	var mysqlhost string
+	valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
+	if ok {
+		log.Infof("MYSQL_HOST overridden by local env: %s", valmysqlhost)
+		mysqlhost = valmysqlhost
 	} else {
 		mysqlhost = e.GetSecret("MYSQL_HOST")
 	}
@@ -138,10 +173,38 @@ func (e Env) BugzillaDSN() string {
 		log.Fatal("MYSQL_HOST is unset")
 	}
 
-	return fmt.Sprintf("%s:%s@tcp(%s:3306)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
-		e.GetSecret("BUGZILLA_DB_USER"),
-		e.GetSecret("BUGZILLA_DB_PASSWORD"),
-		mysqlhost)
+	var mysqlport string
+	valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
+	if ok {
+		log.Infof("MYSQL_PORT overridden by local env: %s", valmysqlport)
+		mysqlport = valmysqlport
+	} else {
+		mysqlport = e.GetSecret("MYSQL_PORT")
+	}
+
+	if mysqlport == "" {
+		log.Fatal("MYSQL_PORT is unset")
+	}
+
+	var bugzillaDbName string
+	valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
+	if ok {
+		log.Infof("BUGZILLA_DB_NAME overridden by local env: %s", valbugzillaDbName)
+		bugzillaDbName = valbugzillaDbName
+	} else {
+		bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
+	}
+
+	if bugzillaDbName == "" {
+		log.Fatal("BUGZILLA_DB_NAME is unset")
+	}
+
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=15s&collation=utf8mb4_unicode_520_ci",
+		bugzillaDbUser,
+		bugzillaDbPassword,
+		mysqlhost,
+		mysqlport,
+		bugzillaDbName)
 }
 
 // GetSecret is the Golang equivalent for
