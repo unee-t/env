@@ -35,8 +35,16 @@ const (
 func New(cfg aws.Config) (e Env, err error) {
 
 	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
-	if !ok {
-		defaultRegion = endpoints.ApSoutheast1RegionID
+	// the AWS variable `DEFAULT_REGION` is in the format `ap-southeast-1`
+	// We can use the repo https://github.com/aws/aws-sdk-go/ to convert this to a format like `ApSoutheast1RegionID`
+	if ok {
+		log.Infof("DEFAULT_REGION overridden by local env: %s", defaultRegion)
+	} else {
+		defaultRegion = e.GetSecret("DEFAULT_REGION")
+	}
+
+	if defaultRegion == "" {
+		log.Fatal("DEFAULT_REGION is unset")
 	}
 
 	cfg.Region = defaultRegion
@@ -126,10 +134,10 @@ func (e Env) Udomain(service string) string {
 
 func (e Env) BugzillaDSN() string {
 	var mysqlhost string
-	val, ok := os.LookupEnv("MYSQL_HOST")
+	valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
 	if ok {
-		log.Infof("MYSQL_HOST overridden by local env: %s", val)
-		mysqlhost = val
+		log.Infof("MYSQL_HOST overridden by local env: %s", valmysqlhost)
+		mysqlhost = valmysqlhost
 	} else {
 		mysqlhost = e.GetSecret("MYSQL_HOST")
 	}
@@ -139,10 +147,10 @@ func (e Env) BugzillaDSN() string {
 	}
 
 	var mysqlport string
-	val, ok := os.LookupEnv("MYSQL_PORT")
+	valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
 	if ok {
-		log.Infof("MYSQL_PORT overridden by local env: %s", val)
-		mysqlport = val
+		log.Infof("MYSQL_PORT overridden by local env: %s", valmysqlport)
+		mysqlport = valmysqlport
 	} else {
 		mysqlport = e.GetSecret("MYSQL_PORT")
 	}
@@ -151,12 +159,25 @@ func (e Env) BugzillaDSN() string {
 		log.Fatal("MYSQL_PORT is unset")
 	}
 
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
+	var bugzillaDbName string
+	valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
+	if ok {
+		log.Infof("BUGZILLA_DB_NAME overridden by local env: %s", valbugzillaDbName)
+		bugzillaDbName = valbugzillaDbName
+	} else {
+		bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
+	}
+
+	if bugzillaDbName == "" {
+		log.Fatal("BUGZILLA_DB_NAME is unset")
+	}
+
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
 		e.GetSecret("BUGZILLA_DB_USER"),
 		e.GetSecret("BUGZILLA_DB_PASSWORD"),
 		mysqlhost,
-		mysqlport
-		)
+		mysqlport,
+		bugzillaDbName)
 }
 
 // GetSecret is the Golang equivalent for
