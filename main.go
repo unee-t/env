@@ -9,7 +9,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
+//	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
