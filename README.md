@@ -12,6 +12,7 @@ In each of the environments that will need this code, the following AWS secrets 
 - STAGE
 - DEFAULT_REGION
 - MYSQL_HOST
+- MYSQL_PORT
 - BUGZILLA_DB_USER
 - BUGZILLA_DB_PASSWORD
 

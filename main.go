@@ -138,10 +138,25 @@ func (e Env) BugzillaDSN() string {
 		log.Fatal("MYSQL_HOST is unset")
 	}
 
-	return fmt.Sprintf("%s:%s@tcp(%s:3306)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
+	var mysqlport string
+	val, ok := os.LookupEnv("MYSQL_PORT")
+	if ok {
+		log.Infof("MYSQL_PORT overridden by local env: %s", val)
+		mysqlport = val
+	} else {
+		mysqlport = e.GetSecret("MYSQL_PORT")
+	}
+
+	if mysqlport == "" {
+		log.Fatal("MYSQL_PORT is unset")
+	}
+
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/bugzilla?multiStatements=true&sql_mode=TRADITIONAL&timeout=5s&collation=utf8mb4_unicode_520_ci",
 		e.GetSecret("BUGZILLA_DB_USER"),
 		e.GetSecret("BUGZILLA_DB_PASSWORD"),
-		mysqlhost)
+		mysqlhost,
+		mysqlport
+		)
 }
 
 // GetSecret is the Golang equivalent for
