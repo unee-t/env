@@ -32,6 +32,34 @@ const (
 	EnvDemo                   // Demo, which is like Production, for prospective customers to try
 )
 
+// GetSecret is the Golang equivalent for
+// aws --profile your-aws-cli-profile ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
+
+func (e Env) GetSecret(key string) string {
+
+	val, ok := os.LookupEnv(key)
+	if ok {
+		log.Warnf("No need to query AWS parameter store: %s overridden by local env", key)
+		return val
+	}
+	// Ideally environment above is set to avoid costly ssm (parameter store) lookups
+
+	ps := ssm.New(e.Cfg)
+	in := &ssm.GetParameterInput{
+		Name:           aws.String(key),
+		WithDecryption: aws.Bool(true),
+	}
+	req := ps.GetParameterRequest(in)
+	out, err := req.Send(context.TODO())
+	if err != nil {
+		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
+		return ""
+	}
+	return aws.StringValue(out.Parameter.Value)
+}
+// NewConfig setups the configuration assuming various parameters have been setup in the AWS account
+// - DEFAULT_REGION
+// - STAGE
 func New(cfg aws.Config) (e Env, err error) {
 
 	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
@@ -205,32 +233,6 @@ func (e Env) BugzillaDSN() string {
 		mysqlhost,
 		mysqlport,
 		bugzillaDbName)
-}
-
-// GetSecret is the Golang equivalent for
-// aws --profile uneet-dev ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
-
-func (e Env) GetSecret(key string) string {
-
-	val, ok := os.LookupEnv(key)
-	if ok {
-		log.Warnf("%s overridden by local env: %s", key, val)
-		return val
-	}
-	// Ideally environment above is set to avoid costly ssm (parameter store) lookups
-
-	ps := ssm.New(e.Cfg)
-	in := &ssm.GetParameterInput{
-		Name:           aws.String(key),
-		WithDecryption: aws.Bool(true),
-	}
-	req := ps.GetParameterRequest(in)
-	out, err := req.Send(context.TODO())
-	if err != nil {
-		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
-		return ""
-	}
-	return aws.StringValue(out.Parameter.Value)
 }
 
 // Protect using: curl -H 'Authorization: Bearer secret' style
