@@ -150,25 +150,31 @@ func (e Env) SNS(name, region string) string {
 
 func (e Env) Udomain(service string) string {
 	if service == "" {
-		log.Warn("Service string empty")
+		log.Warn("Udomain warning:Service string empty")
 		return ""
 	}
-	domain := e.GetSecret("DOMAIN")
-	if domain == "" {
-		domain = "unee-t.com"
-		log.Warnf("Using fallback domain: %s: ", domain)
-	}
-	switch e.Code {
-	case EnvDev:
-		return fmt.Sprintf("%s.dev.%s", service, domain)
-	case EnvProd:
-		return fmt.Sprintf("%s.%s", service, domain)
-	case EnvDemo:
-		return fmt.Sprintf("%s.demo.%s", service, domain)
-	default:
-		log.Warnf("Udomain warning: Env %d is unknown, resorting to dev", e.Code)
-		return fmt.Sprintf("%s.dev.unee-t.com", service)
-	}
+
+	// We establish the domain for the Installation based on parameters DOMAIN
+	// This variable can be edited in the AWS parameter store
+		domain := e.GetSecret("DOMAIN")
+
+	// If we have no information on the domain then we stop
+		if domain == "" {
+			log.Fatal("Udomain error:domain is unset, this is a fatal problem")
+		}
+
+	// Based on the Environment we are in we do different things
+		switch e.Code {
+			case EnvDev:
+				return fmt.Sprintf("%s.dev.%s", service, domain)
+			case EnvProd:
+				return fmt.Sprintf("%s.%s", service, domain)
+			case EnvDemo:
+				return fmt.Sprintf("%s.demo.%s", service, domain)
+			default:
+				log.Fatal("Udomain error: Env is unknown, this is a fatal problem")
+				return ""
+		}
 }
 
 func (e Env) BugzillaDSN() string {
