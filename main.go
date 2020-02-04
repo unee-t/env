@@ -6,12 +6,29 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	
+	"github.com/prometheus/client_golang/prometheus"
+
+	"database/sql"
+
+	_ "github.com/go-sql-driver/mysql"
 )
+
+var pingPollingFreq = 5 * time.Second
+
+type handler struct {
+	DSN            string // aurora database connection string
+	APIAccessToken string
+	db             *sql.DB
+	Code           EnvCode
+}
 
 // Env is how we manage our differing {dev,demo,prod} AWS accounts
 type Env struct {
@@ -112,6 +129,90 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 			log.WithField("stage", e.Stage).Error("NewConfig Error: unknown stage")
 			return e, nil
 		}
+}
+
+// NewBzDbConnexion setups the configuration to the Db where we host the BZ installation
+// various parameters MUST have been setup in the AWS Parameter store
+func NewBzDbConnexion() (h handler, err error) {
+
+	// We check if the AWS CLI profile we need has been setup in this environment
+		awsCliProfile, ok := os.LookupEnv("TRAVIS_AWS_PROFILE")
+		if ok {
+			log.Infof("NewBzDbConnexion Log: the AWS CLI profile we use is: %s", awsCliProfile)
+		} else {
+			log.Fatal("NewBzDbConnexion Fatal: the AWS CLI profile is unset as an environment variable, this is a fatal problem")
+		}
+
+		cfg, err := external.LoadDefaultAWSConfig(external.WithSharedConfigProfile(awsCliProfile))
+		if err != nil {
+			log.WithError(err).Fatal("NewBzDbConnexion Fatal: We do not have the AWS credentials we need")
+			return
+		}
+
+	// We get the value for the DEFAULT_REGION
+		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+		if ok {
+			log.Infof("NewBzDbConnexion Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
+		} else {
+			log.Fatal("NewBzDbConnexion Fatal: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+		}
+
+		cfg.Region = defaultRegion
+		log.Infof("NewBzDbConnexion Log: The AWS region for this environment has been set to: %s", cfg.Region)
+
+	// We get the value for the API_ACCESS_TOKEN
+		apiAccessToken, ok := os.LookupEnv("API_ACCESS_TOKEN")
+		if ok {
+			log.Infof("NewBzDbConnexion Log: API_ACCESS_TOKEN was overridden by local env: **hidden secret**")
+		} else {
+			log.Fatal("NewBzDbConnexion Fatal: API_ACCESS_TOKEN is unset as an environment variable, this is a fatal problem")
+		}
+
+	e, err := NewConfig(cfg)
+	if err != nil {
+		log.WithError(err).Warn("NewBzDbConnexion Warning: error getting some of the parameters for that environment")
+	}
+
+	h = handler{
+		DSN:            e.BugzillaDSN(), // `BugzillaDSN` is a function that is defined in the uneet/env/main.go dependency.
+		APIAccessToken: apiAccessToken,
+		Code:           e.Code,
+	}
+
+	h.db, err = sql.Open("mysql", h.DSN)
+	if err != nil {
+		log.WithError(err).Fatal("NewBzDbConnexion fatal: error opening database")
+		return
+	}
+
+	microservicecheck := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "microservice",
+			Help: "Version with DB ping check",
+		},
+		[]string{
+			"commit",
+		},
+	)
+
+	version := os.Getenv("UP_COMMIT")
+
+	go func() {
+		for {
+			if h.db.Ping() == nil {
+				microservicecheck.WithLabelValues(version).Set(1)
+			} else {
+				microservicecheck.WithLabelValues(version).Set(0)
+			}
+			time.Sleep(pingPollingFreq)
+		}
+	}()
+
+	err = prometheus.Register(microservicecheck)
+	if err != nil {
+		log.Warn("NewBzDbConnexion Warning: prom already registered")
+	}
+	return
 }
 
 func (e Env) Bucket(svc string) string {
