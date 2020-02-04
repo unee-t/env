@@ -62,6 +62,17 @@ func (e Env) GetSecret(key string) string {
 // - STAGE
 func NewConfig(cfg aws.Config) (e Env, err error) {
 
+	// Save for ssm
+	e.Cfg = cfg
+
+	svc := sts.New(cfg)
+	input := &sts.GetCallerIdentityInput{}
+	req := svc.GetCallerIdentityRequest(input)
+	result, err := req.Send(context.TODO())
+	if err != nil {
+		return e, err
+	}
+
 	// We get the ID of the AWS account we use
 		e.AccountID = aws.StringValue(result.Account)
 		log.Infof("The AWS Account ID for this environment is: %s", e.AccountID)
@@ -101,17 +112,6 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 		default:
 			log.WithField("stage", e.Stage).Error("unknown stage")
 			return e, nil
-		}
-
-	// Save for ssm
-		e.Cfg = cfg
-
-		svc := sts.New(cfg)
-		input := &sts.GetCallerIdentityInput{}
-		req := svc.GetCallerIdentityRequest(input)
-		result, err := req.Send(context.TODO())
-		if err != nil {
-			return e, err
 		}
 }
 
