@@ -60,55 +60,59 @@ func (e Env) GetSecret(key string) string {
 // NewConfig setups the configuration assuming various parameters have been setup in the AWS account
 // - DEFAULT_REGION
 // - STAGE
-func New(cfg aws.Config) (e Env, err error) {
+func NewConfig(cfg aws.Config) (e Env, err error) {
 
-	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
-	// the AWS variable `DEFAULT_REGION` is in the format `ap-southeast-1`
-	// We can use the repo https://github.com/aws/aws-sdk-go/ to convert this to a format like `ApSoutheast1RegionID`
-	// TODO - Check with @kai if the format `ap-southeast-1` is OK or if we need to transform that...
-	if ok {
-		log.Infof("DEFAULT_REGION overridden by local env: %s", defaultRegion)
-	} else {
-		defaultRegion = e.GetSecret("DEFAULT_REGION")
-	}
+	// We get the ID of the AWS account we use
+		e.AccountID = aws.StringValue(result.Account)
+		log.Infof("The AWS Account ID for this environment is: %s", e.AccountID)
 
-	if defaultRegion == "" {
-		log.Fatal("DEFAULT_REGION is unset")
-	}
+	// We get the value for the DEFAULT_REGION
+		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+		if ok {
+			log.Infof("DEFAULT_REGION was overridden by local env: %s", defaultRegion)
+		} else {
+			log.Fatal("DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+		}
 
-	cfg.Region = defaultRegion
-	log.Warnf("Env Region: %s", cfg.Region)
+		cfg.Region = defaultRegion
+		log.Infof("The AWS region for this environment has been set to: %s", cfg.Region)
+
+	// We get the value for the STAGE
+		stage, ok := os.LookupEnv("STAGE")
+		if ok {
+			log.Infof("STAGE was overridden by local env: %s", stage)
+		} else {
+			log.Fatal("STAGE is unset as an environment variable, this is a fatal problem")
+		}
+
+		e.Stage = stage
+
+	// Based on the value of the STAGE variable we do different things
+		switch e.Stage {
+		case "dev":
+			e.Code = EnvDev
+			return e, nil
+		case "prod":
+			e.Code = EnvProd
+			return e, nil
+		case "demo":
+			e.Code = EnvDemo
+			return e, nil
+		default:
+			log.WithField("stage", e.Stage).Error("unknown stage")
+			return e, nil
+		}
 
 	// Save for ssm
-	e.Cfg = cfg
+		e.Cfg = cfg
 
-	svc := sts.New(cfg)
-	input := &sts.GetCallerIdentityInput{}
-	req := svc.GetCallerIdentityRequest(input)
-	result, err := req.Send(context.TODO())
-	if err != nil {
-		return e, err
-	}
-
-	e.AccountID = aws.StringValue(result.Account)
-	log.Infof("Account ID: %s", result.Account)
-
-	e.Stage = e.GetSecret("STAGE")
-
-	switch e.Stage {
-	case "dev":
-		e.Code = EnvDev
-		return e, nil
-	case "prod":
-		e.Code = EnvProd
-		return e, nil
-	case "demo":
-		e.Code = EnvDemo
-		return e, nil
-	default:
-		log.WithField("stage", e.Stage).Error("unknown stage")
-		return e, nil
-	}
+		svc := sts.New(cfg)
+		input := &sts.GetCallerIdentityInput{}
+		req := svc.GetCallerIdentityRequest(input)
+		result, err := req.Send(context.TODO())
+		if err != nil {
+			return e, err
+		}
 }
 
 func (e Env) Bucket(svc string) string {
@@ -116,18 +120,24 @@ func (e Env) Bucket(svc string) string {
 	if svc == "" {
 		svc = "media"
 	}
-	installationID := e.GetSecret("INSTALLATION_ID")
-	if installationID == "" {
-		installationID = "main"
-		log.Warnf("Using fallback INSTALLATION_ID: %s: ", installationID)
-	}
-	if installationID == "main" {
-		// Preserve original bucket names
-		return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
-	} else {
-		// Use INSTALLATION_ID to generate unique bucket name
-		return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
-	}
+
+	// We establish the ID of the Installation based on parameters INSTALLATION_ID
+	// This variable can be edited in the AWS parameter store
+		installationID := e.GetSecret("INSTALLATION_ID")
+
+	// If we have no installation ID we stop
+		if installationID == "" {
+			log.Fatal("installationID is unset, this is a fatal problem")
+		}
+
+	// To preserve legacy in case this is the Public Unee-T installation
+		if installationID == "main" {
+			// Preserve original bucket names
+			return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
+		} else {
+			// Use INSTALLATION_ID to generate unique bucket name
+			return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
+		}
 }
 
 func (e Env) SNS(name, region string) string {
