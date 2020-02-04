@@ -81,7 +81,7 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 		if ok {
 			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
 		} else {
-			log.Fatal("NewConfig Error: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+			log.Fatal("NewConfig fatal: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
 		}
 
 		cfg.Region = defaultRegion
@@ -92,7 +92,7 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 		if ok {
 			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", stage)
 		} else {
-			log.Fatal("NewConfig Error: STAGE is unset as an environment variable, this is a fatal problem")
+			log.Fatal("NewConfig fatal: STAGE is unset as an environment variable, this is a fatal problem")
 		}
 
 		e.Stage = stage
@@ -127,7 +127,7 @@ func (e Env) Bucket(svc string) string {
 
 	// If we have no installation ID we stop
 		if installationID == "" {
-			log.Fatal("Bucket Error: installationID is unset, this is a fatal problem")
+			log.Fatal("Bucket fatal: installationID is unset, this is a fatal problem")
 		}
 
 	// To preserve legacy in case this is the Public Unee-T installation
@@ -160,7 +160,7 @@ func (e Env) Udomain(service string) string {
 
 	// If we have no information on the domain then we stop
 		if domain == "" {
-			log.Fatal("Udomain error:domain is unset, this is a fatal problem")
+			log.Fatal("Udomain fatal:domain is unset, this is a fatal problem")
 		}
 
 	// Based on the Environment we are in we do different things
@@ -172,7 +172,7 @@ func (e Env) Udomain(service string) string {
 			case EnvDemo:
 				return fmt.Sprintf("%s.demo.%s", service, domain)
 			default:
-				log.Fatal("Udomain error: Env is unknown, this is a fatal problem")
+				log.Fatal("Udomain fatal: Env is unknown, this is a fatal problem")
 				return ""
 		}
 }
@@ -184,9 +184,9 @@ func (e Env) BugzillaDSN() string {
 		valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
 		if ok {
 			bugzillaDbUser = valbugzillaDbUser
-			log.Infof("BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
+			log.Infof("BugzillaDSN Log: BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
 		} else {
-			log.Fatal("BUGZILLA_DB_USER is unset as an environment variable, this is a fatal problem")
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_USER is unset as an environment variable, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -194,9 +194,9 @@ func (e Env) BugzillaDSN() string {
 		valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
 		if ok {
 			bugzillaDbPassword = valbugzillaDbPassword
-			log.Infof("BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
+			log.Infof("BugzillaDSN Log: BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
 		} else {
-			log.Fatal("BUGZILLA_DB_PASSWORD is unset as an environment variable, this is a fatal problem")
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_PASSWORD is unset as an environment variable, this is a fatal problem")
 		}
 	
 	// Get the value of the variable 
@@ -204,10 +204,10 @@ func (e Env) BugzillaDSN() string {
 		valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
 		if ok {
 			mysqlhost = valmysqlhost
-			log.Infof("MYSQL_HOST was overridden by local env: %s", valmysqlhost)
+			log.Infof("BugzillaDSN Log: MYSQL_HOST was overridden by local env: %s", valmysqlhost)
 		} else {
 			mysqlhost = e.GetSecret("MYSQL_HOST")
-			log.Fatal("MYSQL_HOST is unset as an environment variable, this is a fatal problem")
+			log.Fatal("BugzillaDSN Fatal: MYSQL_HOST is unset as an environment variable, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -215,10 +215,10 @@ func (e Env) BugzillaDSN() string {
 		valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
 		if ok {
 			mysqlport = valmysqlport
-			log.Infof("MYSQL_PORT was overridden by local env: %s", valmysqlport)
+			log.Infof("BugzillaDSN Log: MYSQL_PORT was overridden by local env: %s", valmysqlport)
 		} else {
 			mysqlport = e.GetSecret("MYSQL_PORT")
-			log.Fatal("MYSQL_PORT is unset as an environment variable, this is a fatal problem")
+			log.Fatal("BugzillaDSN Fatal: MYSQL_PORT is unset as an environment variable, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -226,10 +226,10 @@ func (e Env) BugzillaDSN() string {
 		valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
 		if ok {
 			bugzillaDbName = valbugzillaDbName
-			log.Infof("BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
+			log.Infof("BugzillaDSN Log: BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
 		} else {
 			bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
-			log.Fatal("BUGZILLA_DB_NAME is unset as an environment variable, this is a fatal problem")
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_NAME is unset as an environment variable, this is a fatal problem")
 		}
 
 	// Build the string that will allow connection to the BZ database
