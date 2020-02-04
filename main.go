@@ -9,7 +9,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-//	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
@@ -39,7 +38,7 @@ func (e Env) GetSecret(key string) string {
 
 	val, ok := os.LookupEnv(key)
 	if ok {
-		log.Warnf("No need to query AWS parameter store: %s overridden by local env", key)
+		log.Warnf("GetSecret Warning: No need to query AWS parameter store: %s overridden by local env", key)
 		return val
 	}
 	// Ideally environment above is set to avoid costly ssm (parameter store) lookups
@@ -52,7 +51,7 @@ func (e Env) GetSecret(key string) string {
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send(context.TODO())
 	if err != nil {
-		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
+		log.WithError(err).Errorf("GetSecret Error: failed to retrieve credentials for looking up %s", key)
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)
@@ -63,37 +62,37 @@ func (e Env) GetSecret(key string) string {
 func NewConfig(cfg aws.Config) (e Env, err error) {
 
 	// Save for ssm
-	e.Cfg = cfg
+		e.Cfg = cfg
 
-	svc := sts.New(cfg)
-	input := &sts.GetCallerIdentityInput{}
-	req := svc.GetCallerIdentityRequest(input)
-	result, err := req.Send(context.TODO())
-	if err != nil {
-		return e, err
-	}
+		svc := sts.New(cfg)
+		input := &sts.GetCallerIdentityInput{}
+		req := svc.GetCallerIdentityRequest(input)
+		result, err := req.Send(context.TODO())
+		if err != nil {
+			return e, err
+		}
 
 	// We get the ID of the AWS account we use
 		e.AccountID = aws.StringValue(result.Account)
-		log.Infof("The AWS Account ID for this environment is: %s", e.AccountID)
+		log.Infof("NewConfig Log: The AWS Account ID for this environment is: %s", e.AccountID)
 
 	// We get the value for the DEFAULT_REGION
 		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
 		if ok {
-			log.Infof("DEFAULT_REGION was overridden by local env: %s", defaultRegion)
+			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
 		} else {
-			log.Fatal("DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+			log.Fatal("NewConfig Error: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
 		}
 
 		cfg.Region = defaultRegion
-		log.Infof("The AWS region for this environment has been set to: %s", cfg.Region)
+		log.Infof("NewConfig Log: The AWS region for this environment has been set to: %s", cfg.Region)
 
 	// We get the value for the STAGE
 		stage, ok := os.LookupEnv("STAGE")
 		if ok {
-			log.Infof("STAGE was overridden by local env: %s", stage)
+			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", stage)
 		} else {
-			log.Fatal("STAGE is unset as an environment variable, this is a fatal problem")
+			log.Fatal("NewConfig Error: STAGE is unset as an environment variable, this is a fatal problem")
 		}
 
 		e.Stage = stage
@@ -110,16 +109,17 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 			e.Code = EnvDemo
 			return e, nil
 		default:
-			log.WithField("stage", e.Stage).Error("unknown stage")
+			log.WithField("stage", e.Stage).Error("NewConfig Error: unknown stage")
 			return e, nil
 		}
 }
 
 func (e Env) Bucket(svc string) string {
+
 	// Most common bucket
-	if svc == "" {
-		svc = "media"
-	}
+		if svc == "" {
+			svc = "media"
+		}
 
 	// We establish the ID of the Installation based on parameters INSTALLATION_ID
 	// This variable can be edited in the AWS parameter store
@@ -127,7 +127,7 @@ func (e Env) Bucket(svc string) string {
 
 	// If we have no installation ID we stop
 		if installationID == "" {
-			log.Fatal("installationID is unset, this is a fatal problem")
+			log.Fatal("Bucket Error: installationID is unset, this is a fatal problem")
 		}
 
 	// To preserve legacy in case this is the Public Unee-T installation
@@ -142,7 +142,7 @@ func (e Env) Bucket(svc string) string {
 
 func (e Env) SNS(name, region string) string {
 	if name == "" {
-		log.Warn("Service string empty")
+		log.Warn("SNS Wraning: Service string empty")
 		return ""
 	}
 	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
@@ -178,77 +178,67 @@ func (e Env) Udomain(service string) string {
 }
 
 func (e Env) BugzillaDSN() string {
-	var bugzillaDbUser string
-	valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
-	if ok {
-		log.Infof("BUGZILLA_DB_USER overridden by local env: %s", valbugzillaDbUser)
-		bugzillaDbUser = valbugzillaDbUser
-	} else {
-		bugzillaDbUser = e.GetSecret("BUGZILLA_DB_USER")
-	}
 
-	if bugzillaDbUser == "" {
-		log.Fatal("BUGZILLA_DB_USER is unset")
-	}
+	// Get the value of the variable BUGZILLA_DB_USER
+		var bugzillaDbUser string
+		valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
+		if ok {
+			bugzillaDbUser = valbugzillaDbUser
+			log.Infof("BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
+		} else {
+			log.Fatal("BUGZILLA_DB_USER is unset as an environment variable, this is a fatal problem")
+		}
 
-	var bugzillaDbPassword string
-	valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
-	if ok {
-		log.Infof("BUGZILLA_DB_PASSWORD overridden by local env: %s", bugzillaDbPassword)
-		bugzillaDbPassword = valbugzillaDbPassword
-	} else {
-		bugzillaDbPassword = e.GetSecret("BUGZILLA_DB_PASSWORD")
-	}
+	// Get the value of the variable 
+		var bugzillaDbPassword string
+		valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
+		if ok {
+			bugzillaDbPassword = valbugzillaDbPassword
+			log.Infof("BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
+		} else {
+			log.Fatal("BUGZILLA_DB_PASSWORD is unset as an environment variable, this is a fatal problem")
+		}
+	
+	// Get the value of the variable 
+		var mysqlhost string
+		valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
+		if ok {
+			mysqlhost = valmysqlhost
+			log.Infof("MYSQL_HOST was overridden by local env: %s", valmysqlhost)
+		} else {
+			mysqlhost = e.GetSecret("MYSQL_HOST")
+			log.Fatal("MYSQL_HOST is unset as an environment variable, this is a fatal problem")
+		}
 
-	if bugzillaDbPassword == "" {
-		log.Fatal("BUGZILLA_DB_PASSWORD is unset")
-	}
+	// Get the value of the variable 
+		var mysqlport string
+		valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
+		if ok {
+			mysqlport = valmysqlport
+			log.Infof("MYSQL_PORT was overridden by local env: %s", valmysqlport)
+		} else {
+			mysqlport = e.GetSecret("MYSQL_PORT")
+			log.Fatal("MYSQL_PORT is unset as an environment variable, this is a fatal problem")
+		}
 
-	var mysqlhost string
-	valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
-	if ok {
-		log.Infof("MYSQL_HOST overridden by local env: %s", valmysqlhost)
-		mysqlhost = valmysqlhost
-	} else {
-		mysqlhost = e.GetSecret("MYSQL_HOST")
-	}
+	// Get the value of the variable 
+		var bugzillaDbName string
+		valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
+		if ok {
+			bugzillaDbName = valbugzillaDbName
+			log.Infof("BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
+		} else {
+			bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
+			log.Fatal("BUGZILLA_DB_NAME is unset as an environment variable, this is a fatal problem")
+		}
 
-	if mysqlhost == "" {
-		log.Fatal("MYSQL_HOST is unset")
-	}
-
-	var mysqlport string
-	valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
-	if ok {
-		log.Infof("MYSQL_PORT overridden by local env: %s", valmysqlport)
-		mysqlport = valmysqlport
-	} else {
-		mysqlport = e.GetSecret("MYSQL_PORT")
-	}
-
-	if mysqlport == "" {
-		log.Fatal("MYSQL_PORT is unset")
-	}
-
-	var bugzillaDbName string
-	valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
-	if ok {
-		log.Infof("BUGZILLA_DB_NAME overridden by local env: %s", valbugzillaDbName)
-		bugzillaDbName = valbugzillaDbName
-	} else {
-		bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
-	}
-
-	if bugzillaDbName == "" {
-		log.Fatal("BUGZILLA_DB_NAME is unset")
-	}
-
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=15s&collation=utf8mb4_unicode_520_ci",
-		bugzillaDbUser,
-		bugzillaDbPassword,
-		mysqlhost,
-		mysqlport,
-		bugzillaDbName)
+	// Build the string that will allow connection to the BZ database
+		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=15s&collation=utf8mb4_unicode_520_ci",
+			bugzillaDbUser,
+			bugzillaDbPassword,
+			mysqlhost,
+			mysqlport,
+			bugzillaDbName)
 }
 
 // Protect using: curl -H 'Authorization: Bearer secret' style
@@ -264,7 +254,7 @@ func Protect(h http.Handler, APIAccessToken string) http.Handler {
 			token = strings.TrimPrefix(token, "Bearer ")
 		}
 		if token == "" || token != APIAccessToken {
-			log.Errorf("Token %q != APIAccessToken %q", token, APIAccessToken)
+			log.Errorf("Protect Error: Token %q != APIAccessToken %q", token, APIAccessToken)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
