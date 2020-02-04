@@ -9,7 +9,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-//	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
@@ -32,189 +31,14 @@ const (
 	EnvDemo                   // Demo, which is like Production, for prospective customers to try
 )
 
-func New(cfg aws.Config) (e Env, err error) {
-
-	defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
-	// the AWS variable `DEFAULT_REGION` is in the format `ap-southeast-1`
-	// We can use the repo https://github.com/aws/aws-sdk-go/ to convert this to a format like `ApSoutheast1RegionID`
-	// TODO - Check with @kai if the format `ap-southeast-1` is OK or if we need to transform that...
-	if ok {
-		log.Infof("DEFAULT_REGION overridden by local env: %s", defaultRegion)
-	} else {
-		defaultRegion = e.GetSecret("DEFAULT_REGION")
-	}
-
-	if defaultRegion == "" {
-		log.Fatal("DEFAULT_REGION is unset")
-	}
-
-	cfg.Region = defaultRegion
-	log.Warnf("Env Region: %s", cfg.Region)
-
-	// Save for ssm
-	e.Cfg = cfg
-
-	svc := sts.New(cfg)
-	input := &sts.GetCallerIdentityInput{}
-	req := svc.GetCallerIdentityRequest(input)
-	result, err := req.Send(context.TODO())
-	if err != nil {
-		return e, err
-	}
-
-	e.AccountID = aws.StringValue(result.Account)
-	log.Infof("Account ID: %s", result.Account)
-
-	e.Stage = e.GetSecret("STAGE")
-
-	switch e.Stage {
-	case "dev":
-		e.Code = EnvDev
-		return e, nil
-	case "prod":
-		e.Code = EnvProd
-		return e, nil
-	case "demo":
-		e.Code = EnvDemo
-		return e, nil
-	default:
-		log.WithField("stage", e.Stage).Error("unknown stage")
-		return e, nil
-	}
-}
-
-func (e Env) Bucket(svc string) string {
-	// Most common bucket
-	if svc == "" {
-		svc = "media"
-	}
-	installationID := e.GetSecret("INSTALLATION_ID")
-	if installationID == "" {
-		installationID = "main"
-		log.Warnf("Using fallback INSTALLATION_ID: %s: ", installationID)
-	}
-	if installationID == "main" {
-		// Preserve original bucket names
-		return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
-	} else {
-		// Use INSTALLATION_ID to generate unique bucket name
-		return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
-	}
-}
-
-func (e Env) SNS(name, region string) string {
-	if name == "" {
-		log.Warn("Service string empty")
-		return ""
-	}
-	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
-}
-
-func (e Env) Udomain(service string) string {
-	if service == "" {
-		log.Warn("Service string empty")
-		return ""
-	}
-	domain := e.GetSecret("DOMAIN")
-	if domain == "" {
-		domain = "unee-t.com"
-		log.Warnf("Using fallback domain: %s: ", domain)
-	}
-	switch e.Code {
-	case EnvDev:
-		return fmt.Sprintf("%s.dev.%s", service, domain)
-	case EnvProd:
-		return fmt.Sprintf("%s.%s", service, domain)
-	case EnvDemo:
-		return fmt.Sprintf("%s.demo.%s", service, domain)
-	default:
-		log.Warnf("Udomain warning: Env %d is unknown, resorting to dev", e.Code)
-		return fmt.Sprintf("%s.dev.unee-t.com", service)
-	}
-}
-
-func (e Env) BugzillaDSN() string {
-	var bugzillaDbUser string
-	valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
-	if ok {
-		log.Infof("BUGZILLA_DB_USER overridden by local env: %s", valbugzillaDbUser)
-		bugzillaDbUser = valbugzillaDbUser
-	} else {
-		bugzillaDbUser = e.GetSecret("BUGZILLA_DB_USER")
-	}
-
-	if bugzillaDbUser == "" {
-		log.Fatal("BUGZILLA_DB_USER is unset")
-	}
-
-	var bugzillaDbPassword string
-	valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
-	if ok {
-		log.Infof("BUGZILLA_DB_PASSWORD overridden by local env: %s", bugzillaDbPassword)
-		bugzillaDbPassword = valbugzillaDbPassword
-	} else {
-		bugzillaDbPassword = e.GetSecret("BUGZILLA_DB_PASSWORD")
-	}
-
-	if bugzillaDbPassword == "" {
-		log.Fatal("BUGZILLA_DB_PASSWORD is unset")
-	}
-
-	var mysqlhost string
-	valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
-	if ok {
-		log.Infof("MYSQL_HOST overridden by local env: %s", valmysqlhost)
-		mysqlhost = valmysqlhost
-	} else {
-		mysqlhost = e.GetSecret("MYSQL_HOST")
-	}
-
-	if mysqlhost == "" {
-		log.Fatal("MYSQL_HOST is unset")
-	}
-
-	var mysqlport string
-	valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
-	if ok {
-		log.Infof("MYSQL_PORT overridden by local env: %s", valmysqlport)
-		mysqlport = valmysqlport
-	} else {
-		mysqlport = e.GetSecret("MYSQL_PORT")
-	}
-
-	if mysqlport == "" {
-		log.Fatal("MYSQL_PORT is unset")
-	}
-
-	var bugzillaDbName string
-	valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
-	if ok {
-		log.Infof("BUGZILLA_DB_NAME overridden by local env: %s", valbugzillaDbName)
-		bugzillaDbName = valbugzillaDbName
-	} else {
-		bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
-	}
-
-	if bugzillaDbName == "" {
-		log.Fatal("BUGZILLA_DB_NAME is unset")
-	}
-
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=15s&collation=utf8mb4_unicode_520_ci",
-		bugzillaDbUser,
-		bugzillaDbPassword,
-		mysqlhost,
-		mysqlport,
-		bugzillaDbName)
-}
-
 // GetSecret is the Golang equivalent for
-// aws --profile uneet-dev ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
+// aws --profile your-aws-cli-profile ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
 
 func (e Env) GetSecret(key string) string {
 
 	val, ok := os.LookupEnv(key)
 	if ok {
-		log.Warnf("%s overridden by local env: %s", key, val)
+		log.Warnf("GetSecret Warning: No need to query AWS parameter store: %s overridden by local env", key)
 		return val
 	}
 	// Ideally environment above is set to avoid costly ssm (parameter store) lookups
@@ -227,10 +51,194 @@ func (e Env) GetSecret(key string) string {
 	req := ps.GetParameterRequest(in)
 	out, err := req.Send(context.TODO())
 	if err != nil {
-		log.WithError(err).Errorf("failed to retrieve credentials for looking up %s", key)
+		log.WithError(err).Errorf("GetSecret Error: failed to retrieve credentials for looking up %s", key)
 		return ""
 	}
 	return aws.StringValue(out.Parameter.Value)
+}
+// NewConfig setups the configuration assuming various parameters have been setup in the AWS account
+// - DEFAULT_REGION
+// - STAGE
+func NewConfig(cfg aws.Config) (e Env, err error) {
+
+	// Save for ssm
+		e.Cfg = cfg
+
+		svc := sts.New(cfg)
+		input := &sts.GetCallerIdentityInput{}
+		req := svc.GetCallerIdentityRequest(input)
+		result, err := req.Send(context.TODO())
+		if err != nil {
+			return e, err
+		}
+
+	// We get the ID of the AWS account we use
+		e.AccountID = aws.StringValue(result.Account)
+		log.Infof("NewConfig Log: The AWS Account ID for this environment is: %s", e.AccountID)
+
+	// We get the value for the DEFAULT_REGION
+		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+		if ok {
+			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
+		} else {
+			log.Fatal("NewConfig Error: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+		}
+
+		cfg.Region = defaultRegion
+		log.Infof("NewConfig Log: The AWS region for this environment has been set to: %s", cfg.Region)
+
+	// We get the value for the STAGE
+		stage, ok := os.LookupEnv("STAGE")
+		if ok {
+			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", stage)
+		} else {
+			log.Fatal("NewConfig Error: STAGE is unset as an environment variable, this is a fatal problem")
+		}
+
+		e.Stage = stage
+
+	// Based on the value of the STAGE variable we do different things
+		switch e.Stage {
+		case "dev":
+			e.Code = EnvDev
+			return e, nil
+		case "prod":
+			e.Code = EnvProd
+			return e, nil
+		case "demo":
+			e.Code = EnvDemo
+			return e, nil
+		default:
+			log.WithField("stage", e.Stage).Error("NewConfig Error: unknown stage")
+			return e, nil
+		}
+}
+
+func (e Env) Bucket(svc string) string {
+
+	// Most common bucket
+		if svc == "" {
+			svc = "media"
+		}
+
+	// We establish the ID of the Installation based on parameters INSTALLATION_ID
+	// This variable can be edited in the AWS parameter store
+		installationID := e.GetSecret("INSTALLATION_ID")
+
+	// If we have no installation ID we stop
+		if installationID == "" {
+			log.Fatal("Bucket Error: installationID is unset, this is a fatal problem")
+		}
+
+	// To preserve legacy in case this is the Public Unee-T installation
+		if installationID == "main" {
+			// Preserve original bucket names
+			return fmt.Sprintf("%s-%s-unee-t", e.Stage, svc)
+		} else {
+			// Use INSTALLATION_ID to generate unique bucket name
+			return fmt.Sprintf("%s-%s-%s", e.Stage, svc, installationID)
+		}
+}
+
+func (e Env) SNS(name, region string) string {
+	if name == "" {
+		log.Warn("SNS Wraning: Service string empty")
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
+}
+
+func (e Env) Udomain(service string) string {
+	if service == "" {
+		log.Warn("Udomain warning:Service string empty")
+		return ""
+	}
+
+	// We establish the domain for the Installation based on parameters DOMAIN
+	// This variable can be edited in the AWS parameter store
+		domain := e.GetSecret("DOMAIN")
+
+	// If we have no information on the domain then we stop
+		if domain == "" {
+			log.Fatal("Udomain error:domain is unset, this is a fatal problem")
+		}
+
+	// Based on the Environment we are in we do different things
+		switch e.Code {
+			case EnvDev:
+				return fmt.Sprintf("%s.dev.%s", service, domain)
+			case EnvProd:
+				return fmt.Sprintf("%s.%s", service, domain)
+			case EnvDemo:
+				return fmt.Sprintf("%s.demo.%s", service, domain)
+			default:
+				log.Fatal("Udomain error: Env is unknown, this is a fatal problem")
+				return ""
+		}
+}
+
+func (e Env) BugzillaDSN() string {
+
+	// Get the value of the variable BUGZILLA_DB_USER
+		var bugzillaDbUser string
+		valbugzillaDbUser, ok := os.LookupEnv("BUGZILLA_DB_USER")
+		if ok {
+			bugzillaDbUser = valbugzillaDbUser
+			log.Infof("BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
+		} else {
+			log.Fatal("BUGZILLA_DB_USER is unset as an environment variable, this is a fatal problem")
+		}
+
+	// Get the value of the variable 
+		var bugzillaDbPassword string
+		valbugzillaDbPassword, ok := os.LookupEnv("BUGZILLA_DB_PASSWORD")
+		if ok {
+			bugzillaDbPassword = valbugzillaDbPassword
+			log.Infof("BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
+		} else {
+			log.Fatal("BUGZILLA_DB_PASSWORD is unset as an environment variable, this is a fatal problem")
+		}
+	
+	// Get the value of the variable 
+		var mysqlhost string
+		valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
+		if ok {
+			mysqlhost = valmysqlhost
+			log.Infof("MYSQL_HOST was overridden by local env: %s", valmysqlhost)
+		} else {
+			mysqlhost = e.GetSecret("MYSQL_HOST")
+			log.Fatal("MYSQL_HOST is unset as an environment variable, this is a fatal problem")
+		}
+
+	// Get the value of the variable 
+		var mysqlport string
+		valmysqlport, ok := os.LookupEnv("MYSQL_PORT")
+		if ok {
+			mysqlport = valmysqlport
+			log.Infof("MYSQL_PORT was overridden by local env: %s", valmysqlport)
+		} else {
+			mysqlport = e.GetSecret("MYSQL_PORT")
+			log.Fatal("MYSQL_PORT is unset as an environment variable, this is a fatal problem")
+		}
+
+	// Get the value of the variable 
+		var bugzillaDbName string
+		valbugzillaDbName, ok := os.LookupEnv("BUGZILLA_DB_NAME")
+		if ok {
+			bugzillaDbName = valbugzillaDbName
+			log.Infof("BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
+		} else {
+			bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
+			log.Fatal("BUGZILLA_DB_NAME is unset as an environment variable, this is a fatal problem")
+		}
+
+	// Build the string that will allow connection to the BZ database
+		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&sql_mode=TRADITIONAL&timeout=15s&collation=utf8mb4_unicode_520_ci",
+			bugzillaDbUser,
+			bugzillaDbPassword,
+			mysqlhost,
+			mysqlport,
+			bugzillaDbName)
 }
 
 // Protect using: curl -H 'Authorization: Bearer secret' style
@@ -246,7 +254,7 @@ func Protect(h http.Handler, APIAccessToken string) http.Handler {
 			token = strings.TrimPrefix(token, "Bearer ")
 		}
 		if token == "" || token != APIAccessToken {
-			log.Errorf("Token %q != APIAccessToken %q", token, APIAccessToken)
+			log.Errorf("Protect Error: Token %q != APIAccessToken %q", token, APIAccessToken)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
