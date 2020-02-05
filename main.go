@@ -10,12 +10,9 @@ import (
 
 	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	
-	"github.com/prometheus/client_golang/prometheus"
-
 	"database/sql"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -94,22 +91,36 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 		log.Infof("NewConfig Log: The AWS Account ID for this environment is: %s", e.AccountID)
 
 	// We get the value for the DEFAULT_REGION
-		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
+		var defaultRegion string
+		valdefaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
 		if ok {
-			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
+			defaultRegion = valdefaultRegion
+			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", valdefaultRegion)
 		} else {
-			log.Fatal("NewConfig fatal: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
+			defaultRegion = e.GetSecret("DEFAULT_REGION")
+			log.Infof("NewConfig Log: We get the DEFAULT_REGION from the AWS parameter store")
+		}
+	
+		if defaultRegion == "" {
+			log.Fatal("NewConfig fatal: DEFAULT_REGION is unset, this is a fatal problem")
 		}
 
 		cfg.Region = defaultRegion
 		log.Infof("NewConfig Log: The AWS region for this environment has been set to: %s", cfg.Region)
 
 	// We get the value for the STAGE
-		stage, ok := os.LookupEnv("STAGE")
+		var stage string
+		valstage, ok := os.LookupEnv("STAGE")
 		if ok {
-			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", stage)
+			stage = valstage
+			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", valstage)
 		} else {
-			log.Fatal("NewConfig fatal: STAGE is unset as an environment variable, this is a fatal problem")
+			defaultRegion = e.GetSecret("STAGE")
+			log.Infof("NewConfig Log:  We get the STAGE from the AWS parameter store")
+		}
+	
+		if stage == "" {
+			log.Fatal("NewConfig fatal: STAGE is unset, this is a fatal problem")
 		}
 
 		e.Stage = stage
@@ -129,90 +140,6 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 			log.WithField("stage", e.Stage).Error("NewConfig Error: unknown stage")
 			return e, nil
 		}
-}
-
-// NewBzDbConnexion setups the configuration to the Db where we host the BZ installation
-// various parameters MUST have been setup in the AWS Parameter store
-func NewBzDbConnexion() (h handler, err error) {
-
-	// We check if the AWS CLI profile we need has been setup in this environment
-		awsCliProfile, ok := os.LookupEnv("TRAVIS_AWS_PROFILE")
-		if ok {
-			log.Infof("NewBzDbConnexion Log: the AWS CLI profile we use is: %s", awsCliProfile)
-		} else {
-			log.Fatal("NewBzDbConnexion Fatal: the AWS CLI profile is unset as an environment variable, this is a fatal problem")
-		}
-
-		cfg, err := external.LoadDefaultAWSConfig(external.WithSharedConfigProfile(awsCliProfile))
-		if err != nil {
-			log.WithError(err).Fatal("NewBzDbConnexion Fatal: We do not have the AWS credentials we need")
-			return
-		}
-
-	// We get the value for the DEFAULT_REGION
-		defaultRegion, ok := os.LookupEnv("DEFAULT_REGION")
-		if ok {
-			log.Infof("NewBzDbConnexion Log: DEFAULT_REGION was overridden by local env: %s", defaultRegion)
-		} else {
-			log.Fatal("NewBzDbConnexion Fatal: DEFAULT_REGION is unset as an environment variable, this is a fatal problem")
-		}
-
-		cfg.Region = defaultRegion
-		log.Infof("NewBzDbConnexion Log: The AWS region for this environment has been set to: %s", cfg.Region)
-
-	// We get the value for the API_ACCESS_TOKEN
-		apiAccessToken, ok := os.LookupEnv("API_ACCESS_TOKEN")
-		if ok {
-			log.Infof("NewBzDbConnexion Log: API_ACCESS_TOKEN was overridden by local env: **hidden secret**")
-		} else {
-			log.Fatal("NewBzDbConnexion Fatal: API_ACCESS_TOKEN is unset as an environment variable, this is a fatal problem")
-		}
-
-	e, err := NewConfig(cfg)
-	if err != nil {
-		log.WithError(err).Warn("NewBzDbConnexion Warning: error getting some of the parameters for that environment")
-	}
-
-	h = handler{
-		DSN:            e.BugzillaDSN(), // `BugzillaDSN` is a function that is defined in the uneet/env/main.go dependency.
-		APIAccessToken: apiAccessToken,
-		Code:           e.Code,
-	}
-
-	h.db, err = sql.Open("mysql", h.DSN)
-	if err != nil {
-		log.WithError(err).Fatal("NewBzDbConnexion fatal: error opening database")
-		return
-	}
-
-	microservicecheck := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "microservice",
-			Help: "Version with DB ping check",
-		},
-		[]string{
-			"commit",
-		},
-	)
-
-	version := os.Getenv("UP_COMMIT")
-
-	go func() {
-		for {
-			if h.db.Ping() == nil {
-				microservicecheck.WithLabelValues(version).Set(1)
-			} else {
-				microservicecheck.WithLabelValues(version).Set(0)
-			}
-			time.Sleep(pingPollingFreq)
-		}
-	}()
-
-	err = prometheus.Register(microservicecheck)
-	if err != nil {
-		log.Warn("NewBzDbConnexion Warning: prom already registered")
-	}
-	return
 }
 
 func (e Env) Bucket(svc string) string {
@@ -242,8 +169,9 @@ func (e Env) Bucket(svc string) string {
 }
 
 func (e Env) SNS(name, region string) string {
+	// TODO: Check: if service name is empty, should this be a fatal error???
 	if name == "" {
-		log.Warn("SNS Wraning: Service string empty")
+		log.Warn("SNS Warning: Service string empty")
 		return ""
 	}
 	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
@@ -261,7 +189,7 @@ func (e Env) Udomain(service string) string {
 
 	// If we have no information on the domain then we stop
 		if domain == "" {
-			log.Fatal("Udomain fatal:domain is unset, this is a fatal problem")
+			log.Fatal("Udomain fatal: DOMAIN is unset, this is a fatal problem")
 		}
 
 	// Based on the Environment we are in we do different things
@@ -287,7 +215,12 @@ func (e Env) BugzillaDSN() string {
 			bugzillaDbUser = valbugzillaDbUser
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
 		} else {
-			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_USER is unset as an environment variable, this is a fatal problem")
+			bugzillaDbUser = e.GetSecret("BUGZILLA_DB_USER")
+			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_USER from the AWS parameter store")
+		}
+
+		if bugzillaDbUser == "" {
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_USER is unset, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -297,9 +230,14 @@ func (e Env) BugzillaDSN() string {
 			bugzillaDbPassword = valbugzillaDbPassword
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
 		} else {
-			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_PASSWORD is unset as an environment variable, this is a fatal problem")
+			bugzillaDbPassword = e.GetSecret("BUGZILLA_DB_PASSWORD")
+			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_PASSWORD from the AWS parameter store")
 		}
-	
+
+		if bugzillaDbPassword == "" {
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_PASSWORD is unset, this is a fatal problem")
+		}
+
 	// Get the value of the variable 
 		var mysqlhost string
 		valmysqlhost, ok := os.LookupEnv("MYSQL_HOST")
@@ -308,7 +246,11 @@ func (e Env) BugzillaDSN() string {
 			log.Infof("BugzillaDSN Log: MYSQL_HOST was overridden by local env: %s", valmysqlhost)
 		} else {
 			mysqlhost = e.GetSecret("MYSQL_HOST")
-			log.Fatal("BugzillaDSN Fatal: MYSQL_HOST is unset as an environment variable, this is a fatal problem")
+			log.Infof("BugzillaDSN Log: We get the MYSQL_HOST from the AWS parameter store")
+		}
+
+		if mysqlhost == "" {
+			log.Fatal("BugzillaDSN Fatal: MYSQL_HOST is unset, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -319,7 +261,11 @@ func (e Env) BugzillaDSN() string {
 			log.Infof("BugzillaDSN Log: MYSQL_PORT was overridden by local env: %s", valmysqlport)
 		} else {
 			mysqlport = e.GetSecret("MYSQL_PORT")
-			log.Fatal("BugzillaDSN Fatal: MYSQL_PORT is unset as an environment variable, this is a fatal problem")
+			log.Infof("BugzillaDSN Log: We get the MYSQL_PORT from the AWS parameter store")
+		}
+
+		if mysqlport == "" {
+			log.Fatal("BugzillaDSN Fatal: MYSQL_PORT is unset, this is a fatal problem")
 		}
 
 	// Get the value of the variable 
@@ -330,7 +276,11 @@ func (e Env) BugzillaDSN() string {
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
 		} else {
 			bugzillaDbName = e.GetSecret("BUGZILLA_DB_NAME")
-			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_NAME is unset as an environment variable, this is a fatal problem")
+			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_NAME from the AWS parameter store")
+		}
+
+		if bugzillaDbName == "" {
+			log.Fatal("BugzillaDSN Fatal: BUGZILLA_DB_NAME is unset, this is a fatal problem")
 		}
 
 	// Build the string that will allow connection to the BZ database
