@@ -75,7 +75,7 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 		req := svc.GetCallerIdentityRequest(input)
 		result, err := req.Send(context.TODO())
 		if err != nil {
-			return e, err
+			return thisEnvironment, err
 		}
 
 	// We get the ID of the AWS account we use
@@ -121,16 +121,16 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 		switch thisEnvironment.Stage {
 		case "dev":
 			thisEnvironment.environmentId = EnvDev
-			return e, nil
+			return thisEnvironment, nil
 		case "prod":
 			thisEnvironment.environmentId = EnvProd
-			return e, nil
+			return thisEnvironment, nil
 		case "demo":
 			thisEnvironment.environmentId = EnvDemo
-			return e, nil
+			return thisEnvironment, nil
 		default:
 			log.WithField("stage", thisEnvironment.Stage).Error("NewConfig Error: unknown stage")
-			return e, nil
+			return thisEnvironment, nil
 		}
 }
 
