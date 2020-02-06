@@ -419,9 +419,16 @@ func (thisEnvironment environment) Udomain(service string) string {
 
 	// We establish the domain for the Installation based on parameters DOMAIN
 	// This variable can be edited in the AWS parameter store
-		domain := thisEnvironment.GetSecret("DOMAIN")
+	domain := thisEnvironment.GetSecret("DOMAIN")
+	log.Infof("Udomain Log: We have a value for DOMAIN in the AWS parameter store: %s", domain)
 
-	// If we have no information on the domain then we stop
+
+	// We establish the Stage for the environment based on parameters STAGE
+	// This variable can be edited in the AWS parameter store
+	stage := thisEnvironment.GetSecret("STAGE")
+	log.Infof("Udomain Log: We have a value for STAGE in the AWS parameter store: %s", stage)
+
+// If we have no information on the domain then we stop
 		if domain == "" {
 			log.Fatal("Udomain fatal: DOMAIN is unset, this is a fatal problem")
 		}
@@ -429,13 +436,16 @@ func (thisEnvironment environment) Udomain(service string) string {
 	// Based on the Environment we are in we do different things
 		switch thisEnvironment.environmentId {
 			case EnvDev:
-				return fmt.Sprintf("%s.dev.%s", service, domain)
+				log.Infof("Udomain Log: We have a defined the link to this service as %s.%s.%s", service, stage, domain)
+				return fmt.Sprintf("%s.%s.%s", service, stage, domain)
 			case EnvProd:
+				log.Infof("Udomain Log: We have a defined the link to this service as %s.%s", service, domain)
 				return fmt.Sprintf("%s.%s", service, domain)
 			case EnvDemo:
-				return fmt.Sprintf("%s.demo.%s", service, domain)
+				log.Infof("Udomain Log: We have a defined the link to this service as %s.%s.%s", service, stage, domain)
+				return fmt.Sprintf("%s.%s.%s", service, stage, domain)
 			default:
-				log.Fatal("Udomain fatal: Env is unknown, this is a fatal problem")
+				log.Fatal("Udomain fatal: The STAGE for this environment is unknown, this is a fatal problem")
 				return ""
 		}
 }
