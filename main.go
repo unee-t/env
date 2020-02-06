@@ -28,17 +28,20 @@ var pingPollingFreq = 5 * time.Second
 // - the first character of the identifier's name is a Unicode upper case letter (Unicode class "Lu"); and
 // - the identifier is declared in the package block or it is a field name or method name.
 
+// We need this so it can be exported
+type EnvironmentId int
+
 //HandlerSqlConnexion is a type of variable to help us manage our connexion to the SQL databases
 type HandlerSqlConnexion struct {
 	DSN            string // aurora database connection string
 	APIAccessToken string
 	db             *sql.DB
-	environmentId  int
+	environmentId  EnvironmentId
 }
 
 // Environment is a type of variable to help us manage our differing {dev,demo,prod} AWS accounts
 type Environment struct {
-	environmentId   int
+	environmentId   EnvironmentId
 	Cfg       		aws.Config
 	AccountID 		string
 	Stage     		string
@@ -46,10 +49,10 @@ type Environment struct {
 
 // https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L12-L16
 const (
-	EnvUnknown int = iota 	// Oops
-	EnvDev					// Development aka Staging
-	EnvProd					// Production
-	EnvDemo					// Demo, which is like Production, for prospective customers to try
+	EnvUnknown EnvironmentId = iota 	// Oops
+	EnvDev								// Development aka Staging
+	EnvProd								// Production
+	EnvDemo								// Demo, which is like Production, for prospective customers to try
 )
 
 // GetSecret is the Golang equivalent for
