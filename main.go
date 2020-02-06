@@ -20,26 +20,17 @@ import (
 
 var pingPollingFreq = 5 * time.Second
 
-type handler struct {
-	DSN            string // aurora database connection string
-	APIAccessToken string
-	db             *sql.DB
-	Code           EnvCode
-}
-
 // environment is how we manage our differing {dev,demo,prod} AWS accounts
 type environment struct {
-	Code      EnvCode
+	Code      int
 	Cfg       aws.Config
 	AccountID string
 	Stage     string
 }
 
-type EnvCode int
-
 // https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L12-L16
 const (
-	EnvUnknown EnvCode = iota // Oops
+	EnvUnknown int = iota // Oops
 	EnvDev                    // Development aka Staging
 	EnvProd                   // Production
 	EnvDemo                   // Demo, which is like Production, for prospective customers to try
