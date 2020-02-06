@@ -385,6 +385,7 @@ func (thisEnvironment environment) Bucket(svc string) string {
 	// We establish the ID of the Installation based on parameters INSTALLATION_ID
 	// This variable can be edited in the AWS parameter store
 		installationID := thisEnvironment.GetSecret("INSTALLATION_ID")
+		log.Infof("Bucket Log: We have a value for INSTALLATION_ID in the AWS parameter store: %s", installationID)
 
 	// If we have no installation ID we stop
 		if installationID == "" {
