@@ -22,16 +22,22 @@ import (
 
 var pingPollingFreq = 5 * time.Second
 
-//handlerSqlConnexion is a type of variable to help us manage our connexion to the SQL databases
-type handlerSqlConnexion struct {
+// Important GOTCHA
+// See https://stackoverflow.com/questions/24487943/invoking-struct-function-gives-cannot-refer-to-unexported-field-or-method
+// An identifier may be exported to permit access to it from another package. An identifier is exported if both:
+// - the first character of the identifier's name is a Unicode upper case letter (Unicode class "Lu"); and
+// - the identifier is declared in the package block or it is a field name or method name.
+
+//HandlerSqlConnexion is a type of variable to help us manage our connexion to the SQL databases
+type HandlerSqlConnexion struct {
 	DSN            string // aurora database connection string
 	APIAccessToken string
 	db             *sql.DB
 	environmentId  int
 }
 
-// environment is a type of variable to help us manage our differing {dev,demo,prod} AWS accounts
-type environment struct {
+// Environment is a type of variable to help us manage our differing {dev,demo,prod} AWS accounts
+type Environment struct {
 	environmentId   int
 	Cfg       		aws.Config
 	AccountID 		string
@@ -49,7 +55,7 @@ const (
 // GetSecret is the Golang equivalent for
 // aws --profile your-aws-cli-profile ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
 
-func (thisEnvironment environment) GetSecret(key string) string {
+func (thisEnvironment Environment) GetSecret(key string) string {
 
 	val, ok := os.LookupEnv(key)
 	if ok {
@@ -75,7 +81,7 @@ func (thisEnvironment environment) GetSecret(key string) string {
 // NewConfig setups the configuration assuming various parameters have been setup in the AWS account
 // - DEFAULT_REGION
 // - STAGE
-func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
+func NewConfig(cfg aws.Config) (thisEnvironment Environment, err error) {
 
 	// Save for ssm
 		thisEnvironment.Cfg = cfg
@@ -144,7 +150,7 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 		}
 }
 
-func (thisEnvironment environment) BugzillaDSN() string {
+func (thisEnvironment Environment) BugzillaDSN() string {
 
 	// Get the value of the variable BUGZILLA_DB_USER
 		var bugzillaDbUser string
@@ -232,7 +238,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 
 // NewDbConnexion setups what we need to access the DB assuming various parameters have been setup in the AWS account
 
-func NewDbConnexion() (bzDbConnexion handlerSqlConnexion, err error) {
+func NewDbConnexion() (bzDbConnexion HandlerSqlConnexion, err error) {
 
 	// We get the AWS configuration information for the default profile
 		cfg, err := external.LoadDefaultAWSConfig()
@@ -281,7 +287,7 @@ func NewDbConnexion() (bzDbConnexion handlerSqlConnexion, err error) {
 		}
 
 	// We have everything --> We create the database connexion string
-		bzDbConnexion = handlerSqlConnexion{
+		bzDbConnexion = HandlerSqlConnexion{
 			DSN:            thisEnvironment.BugzillaDSN(), // `BugzillaDSN` is a function that is defined in the uneet/env/main.go dependency.
 			APIAccessToken: apiAccessToken,
 			environmentId:  thisEnvironment.environmentId,
@@ -375,7 +381,7 @@ func Towr(currentBzConnexion http.Handler) func(http.ResponseWriter, *http.Reque
 	}
 }
 
-func (thisEnvironment environment) Bucket(svc string) string {
+func (thisEnvironment Environment) Bucket(svc string) string {
 
 	// Most common bucket
 		if svc == "" {
@@ -402,7 +408,7 @@ func (thisEnvironment environment) Bucket(svc string) string {
 		}
 }
 
-func (thisEnvironment environment) SNS(name, region string) string {
+func (thisEnvironment Environment) SNS(name, region string) string {
 	// TODO: Check: if service name is empty, should this be a fatal error???
 	if name == "" {
 		log.Warn("SNS Warning: Service string empty")
@@ -411,7 +417,7 @@ func (thisEnvironment environment) SNS(name, region string) string {
 	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, thisEnvironment.AccountID, name)
 }
 
-func (thisEnvironment environment) Udomain(service string) string {
+func (thisEnvironment Environment) Udomain(service string) string {
 	if service == "" {
 		log.Warn("Udomain warning:Service string empty")
 		return ""
