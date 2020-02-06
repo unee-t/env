@@ -22,7 +22,7 @@ import (
 
 var pingPollingFreq = 5 * time.Second
 
-//handlerSqlConnexion is a type of variabel to help us we manage our connexion to the SQL databases
+//handlerSqlConnexion is a type of variable to help us manage our connexion to the SQL databases
 type handlerSqlConnexion struct {
 	DSN            string // aurora database connection string
 	APIAccessToken string
@@ -30,7 +30,7 @@ type handlerSqlConnexion struct {
 	environmentId  int
 }
 
-// environment is a type of variabel to help us we manage our differing {dev,demo,prod} AWS accounts
+// environment is a type of variable to help us manage our differing {dev,demo,prod} AWS accounts
 type environment struct {
 	environmentId   int
 	Cfg       		aws.Config
@@ -40,10 +40,10 @@ type environment struct {
 
 // https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L12-L16
 const (
-	EnvUnknown int = iota // Oops
-	EnvDev                    // Development aka Staging
-	EnvProd                   // Production
-	EnvDemo                   // Demo, which is like Production, for prospective customers to try
+	EnvUnknown int = iota 	// Oops
+	EnvDev					// Development aka Staging
+	EnvProd					// Production
+	EnvDemo					// Demo, which is like Production, for prospective customers to try
 )
 
 // GetSecret is the Golang equivalent for
@@ -117,7 +117,7 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 			stage = valstage
 			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", valstage)
 		} else {
-			defaultRegion = thisEnvironment.GetSecret("STAGE")
+			stage = thisEnvironment.GetSecret("STAGE")
 			log.Infof("NewConfig Log:  We get the STAGE from the AWS parameter store")
 		}
 	
@@ -333,22 +333,37 @@ func NewDbConnexion() (bzDbConnexion handlerSqlConnexion, err error) {
 
 // Protect using: curl -H 'Authorization: Bearer secret' style
 // Modelled after https://github.com/apex/up-examples/blob/master/oss/golang-basic-auth/main.go#L16
-func Protect(h http.Handler, APIAccessToken string) http.Handler {
+func Protect(currentBzConnexion http.Handler, APIAccessToken string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var token string
 		// Get token from the Authorization header
 		// format: Authorization: Bearer
+		// This token is coming from the `frontend` (the MEFE)
+		// IF YOU HAVE CHANGED THE API_ACCESS_TOKEN THEN YOU MUST REDEPLOY ALL THE CODEBASE:
+		//	- frontend
+		//	- apienroll
+		//	- unit
+		//	- invite
+		//	- lambda2sqs
+		//	- etc...
 		tokens, ok := r.Header["Authorization"]
 		if ok && len(tokens) >= 1 {
 			token = tokens[0]
 			token = strings.TrimPrefix(token, "Bearer ")
 		}
-		if token == "" || token != APIAccessToken {
-			log.Errorf("Protect Error: Token %q != APIAccessToken %q", token, APIAccessToken)
+
+		// Check if the token is empty
+		if token == "" {
+			log.Errorf("Protect Error: The Token on the http request is empty")
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		// Check if this is the correct API Access token
+		}else if token != APIAccessToken {
+			log.Errorf("Protect Error: The Token on the request (%q) is different from the APIAccessToken (**hidden secret**) that we have configured", token)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
-		h.ServeHTTP(w, r)
+		currentBzConnexion.ServeHTTP(w, r)
 	})
 }
 
