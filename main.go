@@ -27,8 +27,8 @@ type handler struct {
 	Code           EnvCode
 }
 
-// Env is how we manage our differing {dev,demo,prod} AWS accounts
-type Env struct {
+// environment is how we manage our differing {dev,demo,prod} AWS accounts
+type environment struct {
 	Code      EnvCode
 	Cfg       aws.Config
 	AccountID string
@@ -48,7 +48,7 @@ const (
 // GetSecret is the Golang equivalent for
 // aws --profile your-aws-cli-profile ssm get-parameters --names API_ACCESS_TOKEN --with-decryption --query Parameters[0].Value --output text
 
-func (e Env) GetSecret(key string) string {
+func (e environment) GetSecret(key string) string {
 
 	val, ok := os.LookupEnv(key)
 	if ok {
@@ -70,10 +70,11 @@ func (e Env) GetSecret(key string) string {
 	}
 	return aws.StringValue(out.Parameter.Value)
 }
+
 // NewConfig setups the configuration assuming various parameters have been setup in the AWS account
 // - DEFAULT_REGION
 // - STAGE
-func NewConfig(cfg aws.Config) (e Env, err error) {
+func NewConfig(cfg aws.Config) (e environment, err error) {
 
 	// Save for ssm
 		e.Cfg = cfg
@@ -142,7 +143,7 @@ func NewConfig(cfg aws.Config) (e Env, err error) {
 		}
 }
 
-func (e Env) Bucket(svc string) string {
+func (e environment) Bucket(svc string) string {
 
 	// Most common bucket
 		if svc == "" {
@@ -168,7 +169,7 @@ func (e Env) Bucket(svc string) string {
 		}
 }
 
-func (e Env) SNS(name, region string) string {
+func (e environment) SNS(name, region string) string {
 	// TODO: Check: if service name is empty, should this be a fatal error???
 	if name == "" {
 		log.Warn("SNS Warning: Service string empty")
@@ -177,7 +178,7 @@ func (e Env) SNS(name, region string) string {
 	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, e.AccountID, name)
 }
 
-func (e Env) Udomain(service string) string {
+func (e environment) Udomain(service string) string {
 	if service == "" {
 		log.Warn("Udomain warning:Service string empty")
 		return ""
@@ -206,7 +207,7 @@ func (e Env) Udomain(service string) string {
 		}
 }
 
-func (e Env) BugzillaDSN() string {
+func (e environment) BugzillaDSN() string {
 
 	// Get the value of the variable BUGZILLA_DB_USER
 		var bugzillaDbUser string
