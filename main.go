@@ -369,8 +369,10 @@ func Protect(currentBzConnexion http.Handler, APIAccessToken string) http.Handle
 
 // Towr is a workaround for gorilla/pat: https://stackoverflow.com/questions/50753049/
 // Wish I could make this simpler
-func Towr(h http.Handler) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) { h.ServeHTTP(w, r) }
+func Towr(currentBzConnexion http.Handler) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) { 
+		currentBzConnexion.ServeHTTP(w, r) 
+	}
 }
 
 func (thisEnvironment environment) Bucket(svc string) string {
