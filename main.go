@@ -22,10 +22,10 @@ var pingPollingFreq = 5 * time.Second
 
 // environment is how we manage our differing {dev,demo,prod} AWS accounts
 type environment struct {
-	Code      int
-	Cfg       aws.Config
-	AccountID string
-	Stage     string
+	environmentId   int
+	Cfg       		aws.Config
+	AccountID 		string
+	Stage     		string
 }
 
 // https://github.com/unee-t/processInvitations/blob/master/sql/1_process_one_invitation_all_scenario_v3.0.sql#L12-L16
@@ -120,13 +120,13 @@ func NewConfig(cfg aws.Config) (e environment, err error) {
 	// Based on the value of the STAGE variable we do different things
 		switch e.Stage {
 		case "dev":
-			e.Code = EnvDev
+			e.environmentId = EnvDev
 			return e, nil
 		case "prod":
-			e.Code = EnvProd
+			e.environmentId = EnvProd
 			return e, nil
 		case "demo":
-			e.Code = EnvDemo
+			e.environmentId = EnvDemo
 			return e, nil
 		default:
 			log.WithField("stage", e.Stage).Error("NewConfig Error: unknown stage")
@@ -185,7 +185,7 @@ func (e environment) Udomain(service string) string {
 		}
 
 	// Based on the Environment we are in we do different things
-		switch e.Code {
+		switch e.environmentId {
 			case EnvDev:
 				return fmt.Sprintf("%s.dev.%s", service, domain)
 			case EnvProd:
