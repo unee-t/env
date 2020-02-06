@@ -68,7 +68,7 @@ func (thisEnvironment environment) GetSecret(key string) string {
 func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 
 	// Save for ssm
-		thisEnvironment/Cfg = cfg
+		thisEnvironment.Cfg = cfg
 
 		svc := sts.New(cfg)
 		input := &sts.GetCallerIdentityInput{}
@@ -79,8 +79,8 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 		}
 
 	// We get the ID of the AWS account we use
-		thisEnvironment/AccountID = aws.StringValue(result.Account)
-		log.Infof("NewConfig Log: The AWS Account ID for this environment is: %s", thisEnvironment/AccountID)
+		thisEnvironment.AccountID = aws.StringValue(result.Account)
+		log.Infof("NewConfig Log: The AWS Account ID for this environment is: %s", thisEnvironment.AccountID)
 
 	// We get the value for the DEFAULT_REGION
 		var defaultRegion string
@@ -89,7 +89,7 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 			defaultRegion = valdefaultRegion
 			log.Infof("NewConfig Log: DEFAULT_REGION was overridden by local env: %s", valdefaultRegion)
 		} else {
-			defaultRegion = thisEnvironment/GetSecret("DEFAULT_REGION")
+			defaultRegion = thisEnvironment.GetSecret("DEFAULT_REGION")
 			log.Infof("NewConfig Log: We get the DEFAULT_REGION from the AWS parameter store")
 		}
 	
@@ -107,7 +107,7 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 			stage = valstage
 			log.Infof("NewConfig Log: STAGE was overridden by local env: %s", valstage)
 		} else {
-			defaultRegion = thisEnvironment/GetSecret("STAGE")
+			defaultRegion = thisEnvironment.GetSecret("STAGE")
 			log.Infof("NewConfig Log:  We get the STAGE from the AWS parameter store")
 		}
 	
@@ -115,21 +115,21 @@ func NewConfig(cfg aws.Config) (thisEnvironment environment, err error) {
 			log.Fatal("NewConfig fatal: STAGE is unset, this is a fatal problem")
 		}
 
-		thisEnvironment/Stage = stage
+		thisEnvironment.Stage = stage
 
 	// Based on the value of the STAGE variable we do different things
-		switch thisEnvironment/Stage {
+		switch thisEnvironment.Stage {
 		case "dev":
-			thisEnvironment/environmentId = EnvDev
+			thisEnvironment.environmentId = EnvDev
 			return e, nil
 		case "prod":
-			thisEnvironment/environmentId = EnvProd
+			thisEnvironment.environmentId = EnvProd
 			return e, nil
 		case "demo":
-			thisEnvironment/environmentId = EnvDemo
+			thisEnvironment.environmentId = EnvDemo
 			return e, nil
 		default:
-			log.WithField("stage", thisEnvironment/Stage).Error("NewConfig Error: unknown stage")
+			log.WithField("stage", thisEnvironment.Stage).Error("NewConfig Error: unknown stage")
 			return e, nil
 		}
 }
@@ -143,7 +143,7 @@ func (thisEnvironment environment) Bucket(svc string) string {
 
 	// We establish the ID of the Installation based on parameters INSTALLATION_ID
 	// This variable can be edited in the AWS parameter store
-		installationID := thisEnvironment/GetSecret("INSTALLATION_ID")
+		installationID := thisEnvironment.GetSecret("INSTALLATION_ID")
 
 	// If we have no installation ID we stop
 		if installationID == "" {
@@ -153,10 +153,10 @@ func (thisEnvironment environment) Bucket(svc string) string {
 	// To preserve legacy in case this is the Public Unee-T installation
 		if installationID == "main" {
 			// Preserve original bucket names
-			return fmt.Sprintf("%s-%s-unee-t", thisEnvironment/Stage, svc)
+			return fmt.Sprintf("%s-%s-unee-t", thisEnvironment.Stage, svc)
 		} else {
 			// Use INSTALLATION_ID to generate unique bucket name
-			return fmt.Sprintf("%s-%s-%s", thisEnvironment/Stage, svc, installationID)
+			return fmt.Sprintf("%s-%s-%s", thisEnvironment.Stage, svc, installationID)
 		}
 }
 
@@ -166,7 +166,7 @@ func (thisEnvironment environment) SNS(name, region string) string {
 		log.Warn("SNS Warning: Service string empty")
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, thisEnvironment/AccountID, name)
+	return fmt.Sprintf("arn:aws:sns:%s:%s:%s", region, thisEnvironment.AccountID, name)
 }
 
 func (thisEnvironment environment) Udomain(service string) string {
@@ -177,7 +177,7 @@ func (thisEnvironment environment) Udomain(service string) string {
 
 	// We establish the domain for the Installation based on parameters DOMAIN
 	// This variable can be edited in the AWS parameter store
-		domain := thisEnvironment/GetSecret("DOMAIN")
+		domain := thisEnvironment.GetSecret("DOMAIN")
 
 	// If we have no information on the domain then we stop
 		if domain == "" {
@@ -185,7 +185,7 @@ func (thisEnvironment environment) Udomain(service string) string {
 		}
 
 	// Based on the Environment we are in we do different things
-		switch thisEnvironment/environmentId {
+		switch thisEnvironment.environmentId {
 			case EnvDev:
 				return fmt.Sprintf("%s.dev.%s", service, domain)
 			case EnvProd:
@@ -207,7 +207,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 			bugzillaDbUser = valbugzillaDbUser
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_USER was overridden by local env: %s", valbugzillaDbUser)
 		} else {
-			bugzillaDbUser = thisEnvironment/GetSecret("BUGZILLA_DB_USER")
+			bugzillaDbUser = thisEnvironment.GetSecret("BUGZILLA_DB_USER")
 			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_USER from the AWS parameter store")
 		}
 
@@ -222,7 +222,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 			bugzillaDbPassword = valbugzillaDbPassword
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_PASSWORD was overridden by local env: **hidden_secret**")
 		} else {
-			bugzillaDbPassword = thisEnvironment/GetSecret("BUGZILLA_DB_PASSWORD")
+			bugzillaDbPassword = thisEnvironment.GetSecret("BUGZILLA_DB_PASSWORD")
 			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_PASSWORD from the AWS parameter store")
 		}
 
@@ -237,7 +237,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 			mysqlhost = valmysqlhost
 			log.Infof("BugzillaDSN Log: MYSQL_HOST was overridden by local env: %s", valmysqlhost)
 		} else {
-			mysqlhost = thisEnvironment/GetSecret("MYSQL_HOST")
+			mysqlhost = thisEnvironment.GetSecret("MYSQL_HOST")
 			log.Infof("BugzillaDSN Log: We get the MYSQL_HOST from the AWS parameter store")
 		}
 
@@ -252,7 +252,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 			mysqlport = valmysqlport
 			log.Infof("BugzillaDSN Log: MYSQL_PORT was overridden by local env: %s", valmysqlport)
 		} else {
-			mysqlport = thisEnvironment/GetSecret("MYSQL_PORT")
+			mysqlport = thisEnvironment.GetSecret("MYSQL_PORT")
 			log.Infof("BugzillaDSN Log: We get the MYSQL_PORT from the AWS parameter store")
 		}
 
@@ -267,7 +267,7 @@ func (thisEnvironment environment) BugzillaDSN() string {
 			bugzillaDbName = valbugzillaDbName
 			log.Infof("BugzillaDSN Log: BUGZILLA_DB_NAME was overridden by local env: %s", valbugzillaDbName)
 		} else {
-			bugzillaDbName = thisEnvironment/GetSecret("BUGZILLA_DB_NAME")
+			bugzillaDbName = thisEnvironment.GetSecret("BUGZILLA_DB_NAME")
 			log.Infof("BugzillaDSN Log: We get the BUGZILLA_DB_NAME from the AWS parameter store")
 		}
 
